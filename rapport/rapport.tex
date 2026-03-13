@@ -1,0 +1,180 @@
+% Classe du document
+\documentclass{ceri/sty/rapport}
+% \documentclass[handout]{ceri/sty/rapport}
+%\documentclass[light]{ceri/sty/rapport}
+%\documentclass[full]{ceri/sty/rapport}
+% \documentclass[blue]{ceri/sty/rapport}
+% --- Codage et langue ---
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+
+% --- Mise en page et mathématiques ---
+\usepackage{amsmath, amssymb}      % Mathématiques
+\usepackage{graphicx}              % Insertion d’images
+\usepackage{float}                 % Contrôle du placement des figures
+\usepackage{subcaption}           % Sous-figures
+\usepackage{tikz}                 % Dessins vectoriels
+\usepackage{pgfplots}             % Graphiques avec TikZ
+\pgfplotsset{compat=1.18}
+
+% --- Tableaux ---
+\usepackage{array}                % Tableaux améliorés
+\usepackage{tabularx}             % Tableaux à largeur ajustée
+\usepackage{longtable}            % Tableaux sur plusieurs pages
+\usepackage{booktabs}             % Règles de tableau pro
+
+% --- Code source ---
+\usepackage{minted}               % Affichage de code avec Pygments
+\usepackage{listings}             % Alternative simple à minted
+\usepackage{verbatim}             % Blocs de texte verbatim
+
+% --- Algorithmes ---
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% --- Bibliographie ---
+\usepackage[backend=biber, style=numeric]{biblatex}
+\addbibresource{bibliographie.bib}
+
+% --- Boîtes et couleurs ---
+\usepackage[most]{tcolorbox}      % Boîtes colorées
+\newtcolorbox{mycodebox}[1][]{colback=gray!20, colframe=gray!50!black, fonttitle=\bfseries\color{white}, coltitle=white, title=#1}
+\definecolor{keywordcolor}{rgb}{0.0, 0.0, 0.5}
+\definecolor{commentcolor}{rgb}{0.5, 0.5, 0.5}
+
+% --- Divers ---
+\usepackage{appendix}             % Gestion des annexes
+\usepackage{csvsimple}            % Lecture de fichiers CSV
+\usepackage{dsfont}               % Pour la notation mathématique \mathds
+
+% --- Hyperliens ---
+\usepackage{hyperref}
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Informations générales
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%TODO Formation concernée : à compléter.
+% Exemples : Licence d'Informatique, Master d'Informatique.
+\major{1A-I}
+
+%TODO Parcours ou spécialité de la formation
+% Exemples pour la licence : Systèmes et Réseaux Informatiques, Ingénierie Logicielle.
+% Exemples pour le master : Ingénierie du Logiciel pour la Société Numérique, Réseaux Informatiques et Services Mobiles.
+%\specialization{Projet d'algorithmique et de programmation}
+
+%TODO UE concernée par le rapport (à modifier).
+% exemple : Projet Algorithmique
+\course{PR-105}
+
+%TODO UCE concernée par le rapport (à modifier, optionnel).
+% \subcourse{PR103}
+
+%TODO Titre du document, à adapter.
+\title{Rapport Projet Coursidor}
+% \subtitle{Sous-titre du document} % seulement si nécessaire
+
+%TODO Liste des auteurs
+\author{
+	Pierre-Louis Shrestha--Salié\\
+    Belhassen Charbaji \\
+    Erwan Billon\\
+    Mano Domingo
+}
+
+%TODO Liste des encadrants, responsables d'UE, etc. (optionnel)
+%\advisor[Responsables]{ % indiquez ici le rôle (par défaut : "Encadrement")
+%	Prénom5 Nom5 \\ % il faut aller à la ligne entre chaque encadrant, comme pour les auteurs
+%	Prénom6 Nom6 \\
+%	Prénom7 Nom7
+%}
+
+%TODO Groupe des auteurs
+% Optionnel : seulement si le travail est réalisé en groupe (en l'absence de groupe, ne définissez pas la macro)
+% Exemple : Groupe 1, G12, etc.
+%\group{Nom/numéro du groupe de travail}
+
+% Date de finalisation du rapport. 
+% La valeur par défaut, qui est recommandée, est la date du jour.
+%\date{\today}
+%\dateUpdt{}
+
+% affiliations des auteurs (pour un rapport de recherche uniquement)
+% \affiliations{
+%     \textsuperscript{1} Laboratoire Informatique d'Avignon -- LIA EA 4128 \\
+%     \textsuperscript{2} Laboratoire Biens, Normes, et Contrats - LBNC EA 3788
+% }
+
+% Il est possible de définir un résumé du document (optionnel) avec la commande \resume comme ci-dessous. 
+% Si la commande n’apparaît pas, le résumé n'est pas inséré dans le document.
+% \summary{Ce document est une introduction à \LaTeX{}. Il s'agit à la fois d'un tutoriel décrivant les principales fonctionnalités de ce système de composition de documents, et d'un modèle servant d'exemple à l'élaboration d'un document. Il utilise le fichier de mise en forme fourni pour l'écriture de rapports dans le cadre des enseignements donnés au CERI, Université d'Avignon.}
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bibliographie
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Désigne le fichier bibliographique à utiliser
+%\addbibresource{bibliographie.bib}
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Début du document
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document} 
+
+% Création de la page de titre.
+\maketitle
+
+% Justification moins stricte : empêche certains mots de dépasser dans la marge
+\sloppy      
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Introduction
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{introduction}
+
+\input{architecture}
+
+\input{graph}
+
+\input{server}
+
+\input{min_max}
+
+\input{astar}
+
+\input{test}
+
+\input{conclusion}
+
+\newpage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bibliographie
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\printbibliography
+
+\end{document}
