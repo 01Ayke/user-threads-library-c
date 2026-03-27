@@ -77,12 +77,12 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
 
   t = malloc(sizeof(*t));
   if (t == NULL)
-    return -1;
+    return -2;
 
   t->stack = malloc(STACK_SIZE);
   if (t->stack == NULL) {
     free(t);
-    return -1;
+    return -3;
   }
 
   t->state = READY;
@@ -160,7 +160,8 @@ void thread_exit(void *retval) {
 
   setcontext(&next->ctx);
 
-  abort();
+  //
+  exit(0);
 }
 
 int thread_join(thread_t thread, void **retval) {
@@ -175,10 +176,10 @@ int thread_join(thread_t thread, void **retval) {
     return -1;
 
   if (target == self)
-    return -1;
+    return -2;
 
   if (target->joined)
-    return -1;
+    return -3;
 
   target->joined = 1;
 
@@ -192,7 +193,7 @@ int thread_join(thread_t thread, void **retval) {
       self->state = RUNNING;
       target->joiner = NULL;
       target->joined = 0;
-      return -1;
+      return -4;
     }
 
     next->state = RUNNING;
@@ -202,7 +203,7 @@ int thread_join(thread_t thread, void **retval) {
   }
 
   if (target->state != DONE)
-    return -1;
+    return -5;
 
   if (retval != NULL)
     *retval = target->retval;
