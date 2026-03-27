@@ -5,7 +5,7 @@
 #include <ucontext.h>
 #include <valgrind/valgrind.h>
 
-#define STACK_SIZE (512 * 1024)
+#define STACK_SIZE (4096)
 
 enum thread_state { READY, RUNNING, BLOCKED, DONE };
 
