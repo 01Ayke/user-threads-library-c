@@ -53,12 +53,6 @@ thread_t thread_self(void) {
 }
 
 //
-static void thread_start(void *(*func)(void *), void *arg) {
-  void *ret = func(arg);
-  thread_exit(ret);
-}
-
-//
 int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
   struct thread_struct *t = malloc(sizeof(struct thread_struct));
   if (!t) return -1;
@@ -70,11 +64,10 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
   getcontext(&t->ctx);
   t->ctx.uc_stack.ss_sp   = t->stack;
   t->ctx.uc_stack.ss_size = STACK_SIZE;
-  t->ctx.uc_stack.ss_flags = 0;
   t->ctx.uc_link          = NULL;
   t->retval = NULL;
   t->state  = READY;
-  makecontext(&t->ctx, (void (*)(void)) thread_start, 2, func, funcarg);
+  makecontext(&t->ctx, (void (*)(void)) func, 1, funcarg);
   TAILQ_INSERT_TAIL(&ready_queue, t, entries);
   *newthread = (thread_t) t;
   return 0;
@@ -109,7 +102,7 @@ void thread_exit(void *retval) {
     current_thread = next;
     setcontext(&next->ctx);
   }
-  if (TAILQ_EMPTY(&ready_queue)) exit(0);
+  exit(0);
 }
 
 //
