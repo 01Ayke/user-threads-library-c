@@ -23,6 +23,8 @@ struct thread_struct {
   int joined;
   struct thread_struct *joiner;
 
+  int heap_allocated;
+
   TAILQ_ENTRY(thread_struct) entries;
 };
 
@@ -31,6 +33,10 @@ static struct thread_queue ready_queue;
 
 static struct thread_struct main_thread;
 static struct thread_struct *current_thread = NULL;
+
+static ucontext_t cleanup_ctx;
+static char cleanup_stack[STACK_SIZE];
+static struct thread_struct *last_exited_thread = NULL;
 
 static struct thread_struct *scheduler_pick_next(void) {
   struct thread_struct *next;
@@ -47,11 +53,40 @@ static void thread_wrapper(void) {
   void *ret = current_thread->func(current_thread->funcarg);
   thread_exit(ret);
 }
+static void free_thread(struct thread_struct *t) {
+  if (t == NULL)
+    return;
+
+  if (t->stack != NULL) {
+    VALGRIND_STACK_DEREGISTER(t->vg_stack_id);
+    free(t->stack);
+    t->stack = NULL;
+  }
+
+  if (t->heap_allocated)
+    free(t);
+}
+
+__attribute__((destructor))
+static void cleanup_routine(void) {
+  struct thread_struct *t;
+
+  if (last_exited_thread != NULL) {
+    free_thread(last_exited_thread);
+    last_exited_thread = NULL;
+  }
+
+  while (!TAILQ_EMPTY(&ready_queue)) {
+    t = TAILQ_FIRST(&ready_queue);
+    TAILQ_REMOVE(&ready_queue, t, entries);
+    free_thread(t);
+  }
+
+  exit(0);
+}
 
 __attribute__((constructor))
-
-static void
-thread_init(void) {
+static void thread_init(void) {
   TAILQ_INIT(&ready_queue);
 
   main_thread.state = RUNNING;
@@ -62,6 +97,14 @@ thread_init(void) {
   main_thread.funcarg = NULL;
   main_thread.joined = 0;
   main_thread.joiner = NULL;
+  main_thread.heap_allocated = 0;
+ 
+  getcontext(&cleanup_ctx);
+  cleanup_ctx.uc_stack.ss_sp = cleanup_stack;
+  cleanup_ctx.uc_stack.ss_size = sizeof(cleanup_stack);
+  cleanup_ctx.uc_stack.ss_flags = 0;
+  cleanup_ctx.uc_link = NULL;
+  makecontext(&cleanup_ctx, cleanup_routine, 0);
 
   getcontext(&main_thread.ctx);
   current_thread = &main_thread;
@@ -91,6 +134,7 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
   t->funcarg = funcarg;
   t->joined = 0;
   t->joiner = NULL;
+  t->heap_allocated=1;
 
   getcontext(&t->ctx);
   t->ctx.uc_stack.ss_sp = t->stack;
@@ -106,7 +150,7 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
 
   TAILQ_INSERT_TAIL(&ready_queue, t, entries);
   *newthread = (thread_t)t;
-
+printf("CREATE %p\n", (void *)t);
   return 0;
 }
 
@@ -151,8 +195,14 @@ void thread_exit(void *retval) {
   next = scheduler_pick_next();
 
   if (next == NULL) {
+    if (prev->heap_allocated)
+      last_exited_thread = prev;
+    else
+      last_exited_thread = NULL;
 
-    exit(0);
+    current_thread = NULL;
+    setcontext(&cleanup_ctx);
+    abort();
   }
 
   next->state = RUNNING;
@@ -160,7 +210,7 @@ void thread_exit(void *retval) {
 
   setcontext(&next->ctx);
 
-  //
+  printf("EXIT current=%p state=%d\n", (void *)current_thread, current_thread->state);
   exit(0);
 }
 
@@ -214,7 +264,9 @@ int thread_join(thread_t thread, void **retval) {
     target->stack = NULL;
   }
 
-  free(target);
+  if (target->heap_allocated)
+    free(target);
+  printf("JOIN FREE target=%p\n", (void *)target);
   return 0;
 }
 
