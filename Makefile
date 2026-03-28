@@ -1,5 +1,9 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -g -I./src
+UNAME_S := $(shell uname -s)
+CFLAGS = -Wall -Wextra -g -I./src -D_XOPEN_SOURCE
+ifeq ($(UNAME_S),Linux)
+  CFLAGS += -DHAVE_VALGRIND
+endif
 LIB = libthread.so
 SRC = src/thread.c
 OBJ = build/thread.o

@@ -1,9 +1,15 @@
 #include "thread.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
 #include <ucontext.h>
+#ifdef HAVE_VALGRIND
 #include <valgrind/valgrind.h>
+#else
+#define VALGRIND_STACK_REGISTER(sp, sz) 0
+#define VALGRIND_STACK_DEREGISTER(id)   ((void)(id))
+#endif
 
 #define STACK_SIZE (4096)
 
@@ -22,6 +28,7 @@ struct thread_struct {
 
   int joined;
   struct thread_struct *joiner;
+  struct thread_struct *waiting_for;
 
   int heap_allocated;
 
@@ -97,6 +104,7 @@ static void thread_init(void) {
   main_thread.funcarg = NULL;
   main_thread.joined = 0;
   main_thread.joiner = NULL;
+  main_thread.waiting_for = NULL;
   main_thread.heap_allocated = 0;
  
   getcontext(&cleanup_ctx);
@@ -134,6 +142,7 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
   t->funcarg = funcarg;
   t->joined = 0;
   t->joiner = NULL;
+  t->waiting_for = NULL;
   t->heap_allocated=1;
 
   getcontext(&t->ctx);
@@ -218,6 +227,7 @@ int thread_join(thread_t thread, void **retval) {
   struct thread_struct *target;
   struct thread_struct *self;
   struct thread_struct *next;
+  struct thread_struct *cursor;
 
   target = (struct thread_struct *)thread;
   self = current_thread;
@@ -231,16 +241,27 @@ int thread_join(thread_t thread, void **retval) {
   if (target->joined)
     return -3;
 
+  /* Deadlock detection: check if target is (transitively) waiting for self */
+  if (target->state != DONE) {
+    cursor = target;
+    while (cursor != NULL) {
+      if (cursor->waiting_for == self)
+        return EDEADLK;
+      cursor = cursor->waiting_for;
+    }
+  }
+
   target->joined = 1;
 
   if (target->state != DONE) {
     target->joiner = self;
-
+    self->waiting_for = target;
     self->state = BLOCKED;
 
     next = scheduler_pick_next();
     if (next == NULL) {
       self->state = RUNNING;
+      self->waiting_for = NULL;
       target->joiner = NULL;
       target->joined = 0;
       return -4;
@@ -250,6 +271,7 @@ int thread_join(thread_t thread, void **retval) {
     current_thread = next;
 
     swapcontext(&self->ctx, &next->ctx);
+    self->waiting_for = NULL;
   }
 
   if (target->state != DONE)
