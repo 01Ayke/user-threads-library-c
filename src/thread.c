@@ -32,7 +32,8 @@ struct thread_struct {
 
   int heap_allocated;
 
-  TAILQ_ENTRY(thread_struct) entries;
+  TAILQ_ENTRY(thread_struct) entries;       /* maillon ready_queue */
+  TAILQ_ENTRY(thread_struct) mutex_entries; /* maillon wait_queue d'un mutex */
 };
 
 TAILQ_HEAD(thread_queue, thread_struct);
@@ -293,21 +294,57 @@ int thread_join(thread_t thread, void **retval) {
 }
 
 int thread_mutex_init(thread_mutex_t *mutex) {
-  (void)mutex;
+  mutex->locked = 0;
+  TAILQ_INIT(&mutex->wait_queue);
   return 0;
 }
 
 int thread_mutex_destroy(thread_mutex_t *mutex) {
-  (void)mutex;
-  return 0;
+  /* erreur si des threads attendent encore sur ce mutex */
+  return TAILQ_EMPTY(&mutex->wait_queue) ? 0 : -1;
 }
 
 int thread_mutex_lock(thread_mutex_t *mutex) {
-  (void)mutex;
+  struct thread_struct *self;
+  struct thread_struct *next;
+
+  if (!mutex->locked) {
+    mutex->locked = 1;
+    return 0;
+  }
+
+  /* mutex pris : on se bloque dans la wait_queue du mutex */
+  self = current_thread;
+  self->state = BLOCKED;
+  TAILQ_INSERT_TAIL(&mutex->wait_queue, self, mutex_entries);
+
+  next = scheduler_pick_next();
+  if (next == NULL) {
+    /* personne d'autre à exécuter : on annule le blocage */
+    TAILQ_REMOVE(&mutex->wait_queue, self, mutex_entries);
+    self->state = RUNNING;
+    return -1;
+  }
+
+  next->state = RUNNING;
+  current_thread = next;
+  swapcontext(&self->ctx, &next->ctx);
+  /* on reprend ici : le mutex nous a été transféré directement par unlock */
   return 0;
 }
 
 int thread_mutex_unlock(thread_mutex_t *mutex) {
-  (void)mutex;
+  struct thread_struct *waiter;
+
+  if (!TAILQ_EMPTY(&mutex->wait_queue)) {
+    /* transfert direct de propriété au premier thread en attente */
+    waiter = TAILQ_FIRST(&mutex->wait_queue);
+    TAILQ_REMOVE(&mutex->wait_queue, waiter, mutex_entries);
+    waiter->state = READY;
+    TAILQ_INSERT_TAIL(&ready_queue, waiter, entries);
+    /* locked reste à 1 : le waiter en est maintenant propriétaire */
+  } else {
+    mutex->locked = 0;
+  }
   return 0;
 }
