@@ -3,11 +3,6 @@
 
 #ifndef USE_PTHREAD
 
-#include <sys/queue.h>
-
-/* forward declaration needed for mutex wait queue */
-struct thread_struct;
-
 /* identifiant de thread
  * NB: pourra être un entier au lieu d'un pointeur si ca vous arrange,
  *     mais attention aux inconvénient des tableaux de threads
@@ -47,10 +42,8 @@ extern void thread_exit(void *retval) __attribute__((__noreturn__));
 
 /* Interface possible pour les mutex */
 typedef struct thread_mutex {
-  int locked;
-  TAILQ_HEAD(thread_mutex_wq, thread_struct) wait_queue;
+  int dummy;
 } thread_mutex_t;
-
 int thread_mutex_init(thread_mutex_t *mutex);
 int thread_mutex_destroy(thread_mutex_t *mutex);
 int thread_mutex_lock(thread_mutex_t *mutex);
