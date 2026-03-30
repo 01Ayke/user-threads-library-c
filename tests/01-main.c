@@ -12,16 +12,19 @@
  * - thread_self() depuis le main
  */
 
-int main() {
+int
+main ()
+{
   int err, i;
 
-  for (i = 0; i < 10; i++) {
-    printf("le main yield tout seul\n");
-    err = thread_yield();
-    assert(!err);
-  }
+  for (i = 0; i < 10; i++)
+    {
+      printf ("le main yield tout seul\n");
+      err = thread_yield ();
+      assert (!err);
+    }
 
-  printf("le main est %p\n", (void *)thread_self());
+  printf ("le main est %p\n", (void *)thread_self ());
 
   return 0;
 }

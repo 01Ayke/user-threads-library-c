@@ -21,26 +21,30 @@ thread_t thmain = 0;
 thread_t thmain = NULL; /* si votre thread_t est un pointeur */
 #endif
 
-static void *thfunc(void *dummy __attribute__((unused))) {
+static void *
+thfunc (void *dummy __attribute__ ((unused)))
+{
   void *res;
   int err;
 
-  err = thread_join(thmain, &res);
-  assert(!err);
-  assert(res == (void *)0xdeadbeef);
-  printf("main terminé OK\n");
+  err = thread_join (thmain, &res);
+  assert (!err);
+  assert (res == (void *)0xdeadbeef);
+  printf ("main terminé OK\n");
   return NULL;
 }
 
-int main() {
+int
+main ()
+{
   thread_t th;
   int err;
 
-  thmain = thread_self();
+  thmain = thread_self ();
 
-  err = thread_create(&th, thfunc, NULL);
-  assert(!err);
+  err = thread_create (&th, thfunc, NULL);
+  assert (!err);
 
-  thread_exit((void *)0xdeadbeef);
+  thread_exit ((void *)0xdeadbeef);
   return 0; /* unreachable, shut up the compiler */
 }
