@@ -1,3 +1,10 @@
 build/
 install/
 *.out
+rapport/*.aux
+rapport/*.bbl
+rapport/*.bcf
+rapport/*.log
+rapport/*.run.xml
+rapport/*.toc
+rapport/*.blg
