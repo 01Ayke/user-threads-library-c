@@ -8,7 +8,7 @@
 #include <valgrind/valgrind.h>
 #else
 #define VALGRIND_STACK_REGISTER(sp, sz) 0
-#define VALGRIND_STACK_DEREGISTER(id)   ((void)(id))
+#define VALGRIND_STACK_DEREGISTER(id) ((void)(id))
 #endif
 
 #define STACK_SIZE (4096)
@@ -75,8 +75,7 @@ static void free_thread(struct thread_struct *t) {
     free(t);
 }
 
-__attribute__((destructor))
-static void cleanup_routine(void) {
+__attribute__((destructor)) static void cleanup_routine(void) {
   struct thread_struct *t;
 
   if (last_exited_thread != NULL) {
@@ -93,8 +92,7 @@ static void cleanup_routine(void) {
   exit(0);
 }
 
-__attribute__((constructor))
-static void thread_init(void) {
+__attribute__((constructor)) static void thread_init(void) {
   TAILQ_INIT(&ready_queue);
 
   main_thread.state = RUNNING;
@@ -107,7 +105,7 @@ static void thread_init(void) {
   main_thread.joiner = NULL;
   main_thread.waiting_for = NULL;
   main_thread.heap_allocated = 0;
- 
+
   getcontext(&cleanup_ctx);
   cleanup_ctx.uc_stack.ss_sp = cleanup_stack;
   cleanup_ctx.uc_stack.ss_size = sizeof(cleanup_stack);
@@ -144,7 +142,7 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
   t->joined = 0;
   t->joiner = NULL;
   t->waiting_for = NULL;
-  t->heap_allocated=1;
+  t->heap_allocated = 1;
 
   getcontext(&t->ctx);
   t->ctx.uc_stack.ss_sp = t->stack;
@@ -160,7 +158,7 @@ int thread_create(thread_t *newthread, void *(*func)(void *), void *funcarg) {
 
   TAILQ_INSERT_TAIL(&ready_queue, t, entries);
   *newthread = (thread_t)t;
-printf("CREATE %p\n", (void *)t);
+  printf("CREATE %p\n", (void *)t);
   return 0;
 }
 
@@ -220,7 +218,8 @@ void thread_exit(void *retval) {
 
   setcontext(&next->ctx);
 
-  printf("EXIT current=%p state=%d\n", (void *)current_thread, current_thread->state);
+  printf("EXIT current=%p state=%d\n", (void *)current_thread,
+         current_thread->state);
   exit(0);
 }
 
