@@ -1,6 +1,7 @@
 CC = gcc
 UNAME_S := $(shell uname -s)
 CFLAGS = -Wall -Wextra -g -I./src -D_XOPEN_SOURCE
+LDFLAGS = -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../lib'
 ifeq ($(UNAME_S),Linux)
   CFLAGS += -DHAVE_VALGRIND
 endif
@@ -12,7 +13,7 @@ LIB_DIR = install/lib
 TESTS = $(wildcard tests/*.c)
 
 all: build $(LIB_DIR) $(BIN_DIR) $(LIB)
-	$(foreach test,$(TESTS),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) -L$(LIB_DIR) -lthread;)
+	$(foreach test,$(TESTS),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) $(LDFLAGS) -lthread;)
 
 build:
 	mkdir -p build
