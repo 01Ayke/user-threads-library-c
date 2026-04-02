@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560">
-<text x="550.0" y="24" text-anchor="middle" font-size="18">Comparaison libthread vs pthread (threads=8, yields=50)</text>
+<text x="550.0" y="24" text-anchor="middle" font-size="18">Comparaison libthread vs pthread (threads=64, yields=1000)</text>
 <line x1="80" y1="460" x2="1080" y2="460" stroke="black"/>
 <line x1="80" y1="40" x2="80" y2="460" stroke="black"/>
 <text x="80.00" y="482" text-anchor="middle" font-size="12">21</text>
@@ -10,8 +10,8 @@
 <text x="794.29" y="482" text-anchor="middle" font-size="12">33</text>
 <text x="937.14" y="482" text-anchor="middle" font-size="12">61</text>
 <text x="1080.00" y="482" text-anchor="middle" font-size="12">62</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="80.00,459.80 222.86,459.37 365.71,459.77 508.57,458.13 651.43,459.99 794.29,456.80 937.14,428.89 1080.00,40.00"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" points="80.00,457.40 222.86,453.63 365.71,456.86 508.57,458.08 651.43,459.62 794.29,453.75 937.14,376.88 1080.00,149.96"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="80.00,459.82 222.86,459.18 365.71,459.81 508.57,447.08 651.43,459.99 794.29,40.00 937.14,446.47 1080.00,69.34"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" points="80.00,456.89 222.86,455.30 365.71,458.40 508.57,447.78 651.43,459.55 794.29,200.33 937.14,356.03 1080.00,72.39"/>
 <text x="90" y="60" fill="#1f77b4" font-size="12">libthread</text>
 <text x="170" y="60" fill="#ff7f0e" font-size="12">pthread</text>
 </svg>

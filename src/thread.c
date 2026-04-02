@@ -39,9 +39,9 @@ struct thread_struct
 
   int heap_allocated;
 
-  TAILQ_ENTRY (thread_struct) entries; /* maillon ready_queue */
+  TAILQ_ENTRY (thread_struct) entries;
   TAILQ_ENTRY (thread_struct)
-  mutex_entries; /* maillon wait_queue d'un mutex */
+  mutex_entries;
 };
 
 TAILQ_HEAD (thread_queue, thread_struct);

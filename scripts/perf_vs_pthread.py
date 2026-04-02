@@ -52,11 +52,12 @@ def discover_examples():
 
 
 def compile_variant(test_id, source_path, use_pthread):
-    out = BUILD_DIR / f"bench-{test_id}-{'pthread' if use_pthread else 'lib'}"
-    cmd = ["gcc", "-Wall", "-Wextra", "-g", "-I./src", str(source_path), "-o", str(out)]
     if use_pthread:
-        cmd += ["-DUSE_PTHREAD", "-lpthread"]
+        out = ROOT / "install" / "bin-pthread" / source_path.stem
+        cmd = ["make", "-s", "bench-pthread"]
     else:
+        out = BUILD_DIR / f"bench-{test_id}-lib"
+        cmd = ["gcc", "-Wall", "-Wextra", "-g", "-I./src", str(source_path), "-o", str(out)]
         cmd += [
             "-L./install/lib",
             f"-Wl,-rpath,{str(ROOT / 'install' / 'lib')}",
