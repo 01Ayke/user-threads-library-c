@@ -279,7 +279,7 @@ thread_join (thread_t thread, void **retval)
   if (target->joined)
     return -3;
 
-  /* Deadlock detection: check if target is (transitively) waiting for self */
+  // INFO: Deadlock detection
   if (target->state != DONE)
     {
       cursor = target;
@@ -346,7 +346,7 @@ thread_mutex_init (thread_mutex_t *mutex)
 int
 thread_mutex_destroy (thread_mutex_t *mutex)
 {
-  /* erreur si des threads attendent encore sur ce mutex */
+  // erreur si des threads attendent encore sur ce mutex
   return TAILQ_EMPTY (&mutex->wait_queue) ? 0 : -1;
 }
 
@@ -362,7 +362,7 @@ thread_mutex_lock (thread_mutex_t *mutex)
       return 0;
     }
 
-  /* mutex pris : on se bloque dans la wait_queue du mutex */
+  // mutex pris -> on se bloque dans la wait_queue du mutex
   self = current_thread;
   self->state = BLOCKED;
   TAILQ_INSERT_TAIL (&mutex->wait_queue, self, mutex_entries);
@@ -370,7 +370,7 @@ thread_mutex_lock (thread_mutex_t *mutex)
   next = scheduler_pick_next ();
   if (next == NULL)
     {
-      /* personne d'autre à exécuter : on annule le blocage */
+      // personne d'autre à exécuter -> on annule le blocage
       TAILQ_REMOVE (&mutex->wait_queue, self, mutex_entries);
       self->state = RUNNING;
       return -1;
@@ -379,7 +379,6 @@ thread_mutex_lock (thread_mutex_t *mutex)
   next->state = RUNNING;
   current_thread = next;
   swapcontext (&self->ctx, &next->ctx);
-  /* on reprend ici : le mutex nous a été transféré directement par unlock */
   return 0;
 }
 
@@ -390,12 +389,12 @@ thread_mutex_unlock (thread_mutex_t *mutex)
 
   if (!TAILQ_EMPTY (&mutex->wait_queue))
     {
-      /* transfert direct de propriété au premier thread en attente */
+      // transfert direct de propriété au premier thread en attente
       waiter = TAILQ_FIRST (&mutex->wait_queue);
       TAILQ_REMOVE (&mutex->wait_queue, waiter, mutex_entries);
       waiter->state = READY;
       TAILQ_INSERT_TAIL (&ready_queue, waiter, entries);
-      /* locked reste à 1 : le waiter en est maintenant propriétaire */
+      // INFO: locked reste à 1 car le waiter en est maintenant propriétaire */
     }
   else
     {
