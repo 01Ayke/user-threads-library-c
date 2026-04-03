@@ -186,7 +186,6 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
 
   TAILQ_INSERT_TAIL (&ready_queue, t, entries);
   *newthread = (thread_t)t;
-  printf ("CREATE %p\n", (void *)t);
   return 0;
 }
 
@@ -253,10 +252,7 @@ thread_exit (void *retval)
   current_thread = next;
 
   setcontext (&next->ctx);
-
-  printf ("EXIT current=%p state=%d\n", (void *)current_thread,
-          current_thread->state);
-  exit (0);
+  __builtin_unreachable ();
 }
 
 int
@@ -331,7 +327,6 @@ thread_join (thread_t thread, void **retval)
 
   if (target->heap_allocated)
     free (target);
-  printf ("JOIN FREE target=%p\n", (void *)target);
   return 0;
 }
 
