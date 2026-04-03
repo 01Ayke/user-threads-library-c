@@ -6,3 +6,4 @@ rapport/*
 !rapport/*.bib
 !rapport/Makefile
 !rapport/ceri/
+!rapport/rapport.pdf
