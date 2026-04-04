@@ -1,0 +1,213 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{margin=2.5cm}
+
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    frame=single,
+    breaklines=true
+}
+
+\title{Projet Système - Threads en espace utilisateur\\
+Rapport intermédiaire}
+\author{\textbf{Groupe 2 - Equipe n°3}\\
+  KECHNA Aymane  \\
+  Shrestha{-}{-}Salié Pierre-Louis \\
+  EL MOUEDDEN Adam}
+\date{6 avril 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Ce rapport décrit l’état d’avancement de notre bibliothèque de threads en espace utilisateur. L’objectif principal de cette première phase était d’obtenir un code fonctionnel et fiable pour les opérations de base : création de threads, ordonnancement coopératif, terminaison, synchronisation par \texttt{join} et mutex. La priorité a été donnée à la robustesse (pas de fuites mémoire, détection d’erreurs) avant d’envisager des optimisations ou des fonctionnalités avancées.
+
+Nous présentons ici l’architecture retenue, les choix d’implémentation, ce qui marche, ce qui ne marche pas encore, et les difficultés que nous avons surmontées. Une première version très simpliste nous a permis d’identifier rapidement les problèmes majeurs (gestion des piles, nettoyage des threads terminés, blocage dans \texttt{join}) et de concevoir la version actuelle.
+
+\section{Architecture générale}
+
+\subsection{Structure d’un thread}
+
+Chaque thread est représenté par une structure \texttt{struct thread\_struct} contenant :
+
+\begin{itemize}
+    \item \texttt{state} : l’état du thread (\texttt{READY}, \texttt{RUNNING}, \texttt{BLOCKED}, \texttt{DONE}).
+    \item \texttt{retval} : la valeur de retour passée à \texttt{thread\_exit}.
+    \item \texttt{ctx} : le contexte d’exécution (type \texttt{ucontext\_t}).
+    \item \texttt{stack} : pointeur vers la pile allouée pour ce thread.
+    \item \texttt{vg\_stack\_id} : identifiant pour Valgrind.
+    \item \texttt{func} et \texttt{funcarg} : fonction et argument passés à \texttt{thread\_create}.
+    \item \texttt{joined} : booléen indiquant si un \texttt{join} a déjà eu lieu.
+    \item \texttt{joiner} : thread en attente de la terminaison de celui-ci.
+    \item \texttt{waiting\_for} : thread que l’on attend (pour détection de deadlock).
+    \item \texttt{heap\_allocated} : indique si la structure a été allouée par \texttt{malloc} (pour distinguer le thread principal).
+    \item Deux entrées TAILQ : l’une pour la file des threads prêts (\texttt{entries}), l’autre pour les files d’attente des mutex (\texttt{mutex\_entries}).
+\end{itemize}
+
+\subsection{Files d’attente}
+
+Nous utilisons les macros BSD \texttt{<sys/queue.h>} (TAILQ). La file \texttt{ready\_queue} contient tous les threads prêts à être exécutés. Les mutex possèdent leur propre file d’attente.
+
+\subsection{Thread principal et thread de nettoyage}
+
+Le thread principal (\texttt{main\_thread}) est initialisé statiquement. Il est en \texttt{RUNNING} dès le départ. Un contexte spécial \texttt{cleanup\_ctx} est préparé pour exécuter la routine de nettoyage lorsque le dernier thread se termine. Cela permet de libérer les ressources restantes (threads non réclamés par \texttt{join}) avant de quitter.
+
+\section{Fonctionnalités implémentées}
+
+\subsection{Création de threads (\texttt{thread\_create})}
+
+\begin{itemize}
+    \item Allocation de la structure et de la pile (taille fixe 4~Ko).
+    \item Initialisation du contexte avec \texttt{getcontext} puis \texttt{makecontext} pointant vers \texttt{thread\_wrapper}.
+    \item Le wrapper appelle la fonction utilisateur puis \texttt{thread\_exit} avec sa valeur de retour.
+    \item Enregistrement de la pile auprès de Valgrind.
+    \item Insertion du nouveau thread dans la \texttt{ready\_queue} (état \texttt{READY}).
+\end{itemize}
+
+\subsection{Ordonnancement (\texttt{thread\_yield})}
+
+\begin{itemize}
+    \item Sauvegarde du thread courant.
+    \item Si un autre thread est prêt, le thread courant passe en \texttt{READY} et est réinséré en queue de la \texttt{ready\_queue}.
+    \item Le thread suivant devient \texttt{RUNNING} et on bascule avec \texttt{swapcontext}.
+\end{itemize}
+
+\subsection{Terminaison (\texttt{thread\_exit})}
+
+\begin{itemize}
+    \item Sauvegarde de la valeur de retour, passage en \texttt{DONE}.
+    \item Réveil du \texttt{joiner} éventuel (le thread qui attendait celui-ci) : son état passe de \texttt{BLOCKED} à \texttt{READY} et il est réinséré dans la \texttt{ready\_queue}.
+    \item Choix du prochain thread prêt.
+    \item Si aucun thread prêt, on bascule vers le contexte de nettoyage (\texttt{cleanup\_ctx}). Le thread terminé est conservé dans \texttt{last\_exited\_thread} pour être libéré plus tard (car on ne peut pas \texttt{free} sa propre pile).
+    \item Sinon, on passe au nouveau thread avec \texttt{setcontext}.
+\end{itemize}
+
+\subsection{Attente de terminaison (\texttt{thread\_join})}
+
+C’est la fonction la plus complexe. Elle effectue plusieurs vérifications :
+
+\begin{itemize}
+    \item Le thread cible ne doit pas être \texttt{NULL}.
+    \item On ne peut pas faire \texttt{join} sur soi-même.
+    \item Un thread ne peut être joint qu’une seule fois (vérification du champ \texttt{joined}).
+    \item \textbf{Détection de deadlock} : on parcourt la chaîne des \texttt{waiting\_for} à partir du thread cible. Si on retombe sur le thread courant, il y a deadlock et on retourne \texttt{EDEADLK}.
+\end{itemize}
+
+Si le thread cible n’est pas terminé (\texttt{state != DONE}) :
+
+\begin{itemize}
+    \item On enregistre le thread courant comme \texttt{joiner} du cible.
+    \item Le thread courant devient \texttt{BLOCKED} (plus dans la \texttt{ready\_queue}).
+    \item On sauvegarde dans \texttt{waiting\_for} la cible (utile pour la détection de cycle).
+    \item On choisit un autre thread prêt et on bascule.
+\end{itemize}
+
+Au réveil (quand la cible termine et nous réactive), on libère la pile et la structure de la cible (si allouée sur le tas), et on récupère sa valeur de retour.
+
+\subsection{Mutex}
+
+Les mutex sont très simples :
+
+\begin{itemize}
+    \item \texttt{thread\_mutex\_init} : initialise \texttt{locked = 0} et une file d’attente vide.
+    \item \texttt{thread\_mutex\_lock} : si le mutex est libre, on le prend (\texttt{locked = 1}). Sinon, on se bloque (état \texttt{BLOCKED}) et on s’insère dans la file d’attente du mutex, puis on cède la main.
+    \item \texttt{thread\_mutex\_unlock} : s’il y a des threads en attente, on en prend le premier, on le passe en \texttt{READY} et on le remet dans la \texttt{ready\_queue}. Le mutex reste verrouillé car ce thread en devient propriétaire. Sinon, on le libère (\texttt{locked = 0}).
+    \item \texttt{thread\_mutex\_destroy} : échoue si des threads attendent encore.
+\end{itemize}
+
+\subsection{Nettoyage global}
+
+Un destructeur (\texttt{cleanup\_routine}) est exécuté à la fin du programme  (via \\\texttt{\_\_attribute\_\_((destructor))}). Il libère les threads encore présents dans la \texttt{ready\_queue} ainsi que \texttt{last\_exited\_thread}. Cela garantit l’absence de fuites mémoire, même si des threads n’ont jamais été joints.
+
+\section{Ce qui ne fonctionne pas encore}
+
+\begin{itemize}
+    \item \textbf{Préemption} : l’ordonnancement est purement coopératif. Un thread qui ne fait jamais \texttt{thread\_yield} ou d’appel bloquant peut monopoliser le processeur.
+    \item \textbf{Support multicoeurs} : tous les threads s’exécutent sur un seul thread noyau.
+    \item \textbf{Sémaphores, variables de condition} : seuls les mutex sont disponibles.
+    \item \textbf{Détection de débordement de pile} : non implémentée (objectif avancé).
+    \item \textbf{Join multiple} : notre implémentation interdit qu’un même thread soit joint plusieurs fois, mais elle ne gère pas non plus le cas où plusieurs threads essayent de joindre la même cible (comportement non défini dans notre code).
+\end{itemize}
+
+\section{Difficultés rencontrées et solutions}
+
+\subsection{Fuites mémoire des threads terminés non joints}
+
+\textbf{Problème} : dans la première version, un thread terminé n’était jamais libéré si personne ne faisait \texttt{join} sur lui.\\
+\textbf{Solution} : nous avons introduit \texttt{last\_exited\_thread} et un contexte de nettoyage. Quand plus aucun thread n’est prêt, on bascule vers \texttt{cleanup\_ctx} qui libère le dernier thread avant de quitter.
+
+\subsection{\texttt{thread\_join} avec attente active}
+
+\textbf{Problème} : la première version utilisait \texttt{while(state != DONE) thread\_yield()}, ce qui consommait du CPU inutilement.\\
+\textbf{Solution} : passage en \texttt{BLOCKED} et réveil uniquement par le thread terminé. Cela nécessite d’ajouter les champs \texttt{joiner} et \texttt{waiting\_for}.
+
+\subsection{Deadlock dans les \texttt{join} circulaires}
+
+\textbf{Problème} : si A attend B et B attend A, les deux restent bloqués indéfiniment.\\
+\textbf{Solution} : détection par parcours de \texttt{waiting\_for} avant de se bloquer. La fonction \texttt{thread\_join} retourne \texttt{EDEADLK} dans ce cas.
+
+\subsection{Valgrind signale des erreurs sur les piles}
+
+\textbf{Problème} : Valgrind ne connaît pas nos piles allouées dynamiquement.\\
+\textbf{Solution} : enregistrement avec \texttt{VALGRIND\_STACK\_REGISTER} lors de la création, et \texttt{VALGRIND\_STACK\_DEREGISTER} avant la libération.
+
+\subsection{Libération de sa propre pile dans \texttt{thread\_exit}}
+
+\textbf{Problème} : dans \texttt{thread\_exit}, on ne peut pas \texttt{free} la pile du thread courant avant de basculer vers un autre contexte.\\
+\textbf{Solution} : le thread terminé est conservé dans \texttt{last\_exited\_thread}. Le contexte de nettoyage se chargera de le libérer après le dernier \texttt{swapcontext}/\texttt{setcontext}.
+
+\section{Tests effectués}
+
+Les tests 01 à 64 et 81 passent tous avec succès. Aucune fuite mémoire n'est détectée par Valgrind.
+
+Le test 71 (préemption) s'exécute sans erreur mais la préemption n'est pas encore implémentée. Le thread principal termine le test avant que les autres threads aient fini leurs itérations, ce qui donne un résultat positif artificiel. Cette fonctionnalité sera ajoutée ultérieurement.
+
+\section{Plan pour la suite}
+
+\subsection{Avant la démo de mi-parcours}
+
+\begin{itemize}
+    \item Finaliser l’intégration des tests officiels.
+    \item Mettre en place \texttt{make check}, \texttt{make valgrind}.
+    \item Implémenter le système de mesures de performance et les courbes de comparaison avec pthreads (\texttt{make graphs}).
+    \item Ajouter au moins deux tests supplémentaires (somme de tableau par diviser-pour-régner, tri parallèle).
+\end{itemize}
+
+\subsection{Objectifs avancés (après validation des bases)}
+
+\begin{enumerate}
+    \item \textbf{Préemption} : utiliser un timer (\texttt{setitimer}) et \texttt{SIGALRM} pour forcer un \texttt{thread\_yield} périodique.
+    \item \textbf{Détection de débordement de pile} : avec \texttt{mprotect} et \texttt{sigaltstack}.
+    \item \textbf{Sémaphores} et \textbf{variables de condition}.
+    \item \textbf{Support multicoeurs} (optionnel, difficile).
+\end{enumerate}
+
+\section{Conclusion}
+
+La version actuelle de notre bibliothèque implémente correctement les opérations de base : création, ordonnancement coopératif, terminaison, \texttt{join} avec détection de deadlock et mutex. Les fuites mémoire sont éliminées grâce à un mécanisme de nettoyage différé. Les principales limites sont l’absence de préemption et le mono-coeur, ce qui sera adressé dans la seconde phase du projet.
+
+Le code est prêt à être soumis aux tests de performance et comparé aux pthreads. Les prochaines étapes consistent à automatiser les benchmarks et à ajouter la préemption pour rendre l’ordonnancement plus réaliste.
+
+\vspace{1cm}
+\hrule
+\vspace{0.5cm}
+\emph{Rapport préparé pour la démo du 07/04/2025}
+
+\end{document}
