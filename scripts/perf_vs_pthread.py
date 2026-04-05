@@ -52,19 +52,12 @@ def discover_examples():
 
 
 def compile_variant(test_id, source_path, use_pthread):
+    bin_name = source_path.stem
     if use_pthread:
-        out = ROOT / "install" / "bin-pthread" / source_path.stem
-        cmd = ["make", "-s", "bench-pthread"]
-    else:
-        out = BUILD_DIR / f"bench-{test_id}-lib"
-        cmd = ["gcc", "-Wall", "-Wextra", "-g", "-I./src", str(source_path), "-o", str(out)]
-        cmd += [
-            "-L./install/lib",
-            f"-Wl,-rpath,{str(ROOT / 'install' / 'lib')}",
-            "-lthread",
-        ]
-    run_cmd(cmd)
-    return out
+        run_cmd(["make", "-s", "bench-pthread"])
+        return ROOT / "install" / "bin-pthread" / bin_name
+    run_cmd(["make", "-s"])
+    return ROOT / "install" / "bin" / bin_name
 
 
 def parse_graph_line(test_id, output):
@@ -75,7 +68,7 @@ def parse_graph_line(test_id, output):
         if int(m.group(1)) != test_id:
             continue
         payload = m.group(2)
-        if test_id in {21, 22, 23, 61, 62}:
+        if test_id in {21, 22, 23, 24, 34, 61, 62}:
             m2 = LINE2X61X62.match(payload)
             if m2:
                 return int(m2.group(2))
@@ -87,11 +80,13 @@ def parse_graph_line(test_id, output):
             m2 = LINE32X33.match(payload)
             if m2:
                 return int(m2.group(3))
-    raise RuntimeError(f"Ligne GRAPH introuvable pour test {test_id}.\nSortie:\n{output}")
+    raise RuntimeError(
+        f"Ligne GRAPH introuvable pour test {test_id}.\nSortie:\n{output}"
+    )
 
 
 def args_for_test(test_id, nthreads, nyield):
-    if test_id in {21, 22, 23, 61, 62}:
+    if test_id in {21, 22, 23, 24, 34, 61, 62}:
         return [str(nthreads)]
     if test_id in {31, 32, 33}:
         return [str(nthreads), str(nyield)]
@@ -137,21 +132,31 @@ def write_svg_plot(out_path, labels, lib_values, pth_values, title):
 
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">',
-        f'<text x="{width/2:.1f}" y="24" text-anchor="middle" font-size="18">{title}</text>',
-        f'<line x1="{left}" y1="{top+plot_h}" x2="{left+plot_w}" y2="{top+plot_h}" stroke="black"/>',
-        f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top+plot_h}" stroke="black"/>',
+        f'<text x="{width / 2:.1f}" y="24" text-anchor="middle" font-size="18">{title}</text>',
+        f'<line x1="{left}" y1="{top + plot_h}" x2="{left + plot_w}" y2="{top + plot_h}" stroke="black"/>',
+        f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_h}" stroke="black"/>',
     ]
 
     for i, label in enumerate(labels):
         x = sx(i)
-        lines.append(f'<text x="{x:.2f}" y="{top+plot_h+22}" text-anchor="middle" font-size="12">{label}</text>')
+        lines.append(
+            f'<text x="{x:.2f}" y="{top + plot_h + 22}" text-anchor="middle" font-size="12">{label}</text>'
+        )
 
     lib_points = " ".join(f"{sx(i):.2f},{sy(v):.2f}" for i, v in enumerate(lib_values))
     pth_points = " ".join(f"{sx(i):.2f},{sy(v):.2f}" for i, v in enumerate(pth_values))
-    lines.append(f'<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="{lib_points}"/>')
-    lines.append(f'<polyline fill="none" stroke="#ff7f0e" stroke-width="2" points="{pth_points}"/>')
-    lines.append(f'<text x="{left+10}" y="{top+20}" fill="#1f77b4" font-size="12">libthread</text>')
-    lines.append(f'<text x="{left+90}" y="{top+20}" fill="#ff7f0e" font-size="12">pthread</text>')
+    lines.append(
+        f'<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="{lib_points}"/>'
+    )
+    lines.append(
+        f'<polyline fill="none" stroke="#ff7f0e" stroke-width="2" points="{pth_points}"/>'
+    )
+    lines.append(
+        f'<text x="{left + 10}" y="{top + 20}" fill="#1f77b4" font-size="12">libthread</text>'
+    )
+    lines.append(
+        f'<text x="{left + 90}" y="{top + 20}" fill="#ff7f0e" font-size="12">pthread</text>'
+    )
     lines.append("</svg>")
     out_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -187,6 +192,11 @@ def main():
         "--csv",
         default=str(ROOT / "benchmarks" / "perf_examples_vs_pthread.csv"),
         help="CSV de sortie (test_id,library_us,pthread_us).",
+    )
+    parser.add_argument(
+        "--log-scale",
+        action="store_true",
+        help="Utilise une échelle logarithmique pour l'axe Y.",
     )
     args = parser.parse_args()
 
@@ -230,7 +240,11 @@ def main():
         plt.plot(idx, pth_values, marker="o", label="pthread")
         plt.xticks(idx, x_labels)
         plt.xlabel("Exemple (numéro de test)")
-        plt.ylabel("Temps (microsecondes)")
+        if args.log_scale:
+            plt.yscale("log")
+            plt.ylabel("Temps (microsecondes, échelle log)")
+        else:
+            plt.ylabel("Temps (microsecondes)")
         plt.title(title)
         plt.grid(True, linestyle="--", alpha=0.3)
         plt.legend()

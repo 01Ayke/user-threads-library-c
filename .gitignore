@@ -1,9 +1,9 @@
 build/
 install/
-*.out
 rapport/*
 !rapport/*.tex
 !rapport/*.bib
 !rapport/Makefile
 !rapport/ceri/
-!rapport/rapport.pdf
+benchmarks/
+compile_commands.json

@@ -1,26 +1,3 @@
-\section{Architecture }
+\section{Architecture}
+Notre implémentation 
 
-
-\begin{minted}{c}
-  struct thread_struct {
-    enum thread_state state;       
-    void *retval;                  
-                                                                                
-    ucontext_t ctx;                
-    void *stack;                  
-    int vg_stack_id;              
-                                                                                
-    void *(*func)(void *);        
-    void *funcarg;                
-                                                                                
-    int joined;                   
-    struct thread_struct *joiner;  
-    struct thread_struct *waiting_for; 
-  
-    int heap_allocated;            
-                                                                                
-    TAILQ_ENTRY(...) entries;       
-    TAILQ_ENTRY(...) mutex_entries; 
-  };                                                                            
-          
-\end{minted}

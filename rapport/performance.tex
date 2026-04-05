@@ -1,5 +1,55 @@
 \section{Performances}
 
+\subsection{Protocole de mesure}
+Nous avons mesuré les performances uniquement sur les tests pertinents. Ces tests comparent notamment les performances de notre librairie, à celle de pthread.
 
-%Protocole et puis 
-%Graphes de comparaison avec pthread
+Pour chaque test, nous lançons 3 executions et nous conservons la médiane des relevés afin de fournir un résultat moins sensible au bruit.
+Les mesures ci-dessous correspondent à la configuration :
+\texttt{threads=64} et \texttt{yields=1000} quand applicable dans le test.
+
+\subsection{Résultats intermédiaires}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{rrrr}
+    \toprule
+    Test & libthread ($\mu$s) & pthread ($\mu$s) & Ratio lib/pthread \\
+    \midrule
+    21 & 210 & 3691 & 0.06 \\
+    22 & 971 & 5586 & 0.17 \\
+    23 & 220 & 1905 & 0.12 \\
+    31 & 15341 & 14519 & 1.06 \\
+    32 & 6 & 538 & 0.01 \\
+    33 & 498853 & 308419 & 1.62 \\
+    61 & 16074 & 123485 & 0.13 \\
+    62 & 464004 & 460383 & 1.01 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Comparaison préliminaire des temps d'exécution.}
+  \label{tab:perf-intermediaire}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{../benchmarks/perf_examples_vs_pthread.png}
+  \caption{Comparaison libthread/pthread sur les tests $>20$ (mesures intermédiaires).}
+  \label{fig:perf-lib-vs-pthread}
+\end{figure}
+
+\subsection{Analyse}
+Ces mesures montrent que notre implémentation est déjà compétitive sur plusieurs cas
+(21, 22, 23, 32, 61), ce qui est cohérent avec un ordonnancement en espace utilisateur
+et un coût de commutation faible.
+En revanche, les tests 33 et 62 restent des points faibles : ils semblent plus sensibles
+à nos choix de structures de données et au coût des parcours quand le nombre de threads
+augmente.
+
+Cette section sera consolidée pour le rapport final avec :
+\begin{itemize}
+  \item des courbes pour plusieurs tailles de charge (variation du nombre de threads) ;
+  \item une description précise de la machine utilisée (CPU/coeurs) ;
+  \item une analyse ciblée des régressions (en particulier sur 33 et 62).
+\end{itemize}
+%Parler de la pertinence de comparer avec pthread
+
+\subsection{Limitation de la comparaison}
+
