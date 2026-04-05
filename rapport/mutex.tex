@@ -1,8 +1,11 @@
 \section{Mutex}
-
+Un composant important permettant une execution des threads sur des données partagée sont les mutex. Nous allons voir dans cette partie notre gestion de ces derniers.
 \subsection{Architecture}
-
+Notre choix pour représenter la file d'attente des threads sur une donnée bloquée par un mutex s'est aussi reportée sur une file doublement chainée.
+Ce choix a été portée par l'idée d'une implémentation permettant un système de priorité entre les threads sur la donnée. Comme dit précedemment, une file doublement chainée
+permetterait une manipulation en temps constant.
+L'implémentation dans la librairie suit la même logique que la file décrite en \ref{sec:files_dattente}.
 
 \subsection{Prévention DeadLock}
-
+La question des DeadLocks constinue un point critique dans la gestion des mutex. Afin de prévenir ce problème, nous avons adopté une approche cons
 
