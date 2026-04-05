@@ -1,0 +1,8 @@
+\section{Files d’attente}
+Afin de pouvoir avoir une execution de plusieurs threads et de gerer ces executions (thread qui cede le processeur: thread qui termine et plus tard afin de pouvoir appliquer une politique de preemption, 
+nous avons ajouter une file d'attente permettant de stocker les threads prets a l'execution. Nous avons opté pour le choix d'une file doublement chainée afin de pourvoir effectué 
+des insertions, suppressions et modifications en temps constant. Obtenir une complexité base sur ces operations est important dans une recherche de performance notamment lorsque ces actions sont essentielle
+comme par exexmple le retrait d'un thread de la file
+lors d'un changement d'etat de ce dernier. Cette operation sur une file simple aurait entrainée une complexité linéaire non négligable.
+Ce choix porte un coup, notamment un coup mémoire. Seulement, le nombre de thread restant globalement faible: le surcoup mémoire apporté nous parait negligable.
+Notre implémentation de la file repose sur celle décrite par la librarie \textit{<sys/queue.h>}\cite{queue_lib} ous avons ajouté à la structure \textit{thread\_struct} 

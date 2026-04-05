@@ -1,3 +1,20 @@
 \section{Architecture}
-Notre implémentation 
+Notre implémentation des threads repose sur une structure de appelée \textit{thread\_struct}. Nous allons expliciter ici la structure élémentaire définissant un thread.\\ 
+Certains éléments avancé de cette structure on été volontairement omis et seront précisé plus tard dans ce document.
+
+\begin{itemize}
+    \item \texttt{state} : état du thread.
+    \item \texttt{ctx} : contexte d’exécution.
+    \item \texttt{stack} : pointeur vers la pile allouée pour ce thread.
+    \item \texttt{func} : fonction exécutée par le thread
+    \item \texttt{funcarg} : arguments de la fonction du thread
+    \item \texttt{retval} : valeur de retour de la fonction.
+\end{itemize}
+
+Comme exprimé précédement, cette structure est incomplète. Nous allons désormais aborder les problématiques nous ayant poussé a modifier \textit{thread\_struct}.
+
+
+
+
+
 

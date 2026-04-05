@@ -6,4 +6,5 @@ rapport/*
 !rapport/Makefile
 !rapport/ceri/
 benchmarks/
+.cache/
 compile_commands.json
