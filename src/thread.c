@@ -10,6 +10,7 @@
 #define VALGRIND_STACK_REGISTER(sp, sz) 0
 #define VALGRIND_STACK_DEREGISTER(id) ((void)(id))
 #endif
+// TODO: enlever les valeurs magiques dans les codes d'erreurs
 
 #define STACK_SIZE (4096)
 
