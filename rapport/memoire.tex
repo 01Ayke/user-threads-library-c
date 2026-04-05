@@ -1,10 +1,38 @@
-\section{Validation Mémoire}
+\section{Mémoire}
 
-
-%Problemes rencontrés
+\subsection{Libération de la mémoire d'un thread}
 % pas de thread_exit du coup wrapper parce que sinon on ne switch pas au thread suivant et donc memory leak 
 % => Thread quand pas d'exit a la fin du main(join)
+Notre implémentation libere la memoire allouée dynamiquement a un thread au moment ou ce thread est attendue par un autre. \\ 
+Cela pose plusieurs questions, notamment si un thread termine mais que l'utilisateur n'a pas utiliser la fonction \textit{thread\_exit} qui défini notamment le comportement que doit 
+adopter un thread a la fin de son execution. 
+Un thread n'utilisant pas cette routine compromet le reste de l'execution. Afin de palier a ce probleme, nous avons décider d'utiliser une fonction \textit{wrapper}, qui a comme
+definition de lancer la fonction du thread, puis de recupere la valeur de retour cette derniere puis de la transmettre a la fonction \textit{thread\_exit}.\\ 
+Assurant donc un appel a la routine même si elle n'est jamais appelée dans le code utilisateur. \\
+.
+
 % descructeur (exit sur une stack allouée dynamiquement) -> stack allouée a la mano pour pouvoir clean le dernier thread
-% SOlutions trouvees
-%Validation finale avec valgrind
 %    \item \texttt{heap\_allocated} : indique si la structure a été allouée par \texttt{malloc} (pour distinguer le thread principal).
+\subsection{Appel a un destructeur}
+Un autre point est le fait que la libération de la mémoire utilisée par un thread n'est effectuée qu'apres que celui-ci est été joint
+par un autre thread. Seulement, si aucun thread n'attend ce dernier: on peut obtenir une fuite de mémoire. \d 
+Nous avons donc défini un destructeur, qui est executé a la fin du processus. Il permet de liberer les ressources allouées des threads restants dans la file d'attente ainsi que le dernier thread qui a terminé et qui n'aurait donc aucun autre thread pouvant le joindre.
+La destruction du dernier thread exécutable demande un traitement particulier.
+En effet, un thread ne peut pas libérer sa propre pile pendant qu'il s'exécute encore dessus. Cela provoquerait une corruption mémoire (use-after-free).
+Dans notre implémentation, lorsqu'un thread se termine (\texttt{thread\_exit}), il est d'abord marqué comme terminé, puis l'ordonnanceur tente de sélectionner un autre thread prêt.
+S'il en existe un, l'exécution est transférée vers ce thread, et la libération de la mémoire du thread terminé est réalisée plus tard (typiquement via \texttt{thread\_join}).
+Le cas critique est celui où aucun thread prêt n'existe après \texttt{thread\_exit} : il reste alors un dernier thread à nettoyer.
+Pour résoudre ce problème, nous utilisons un contexte de nettoyage dédié (\texttt{cleanup\_ctx}) avec une
+pile séparée (\texttt{cleanup\_stack}) allouée statiquement.
+
+Lorsque plus aucun thread n'est présent dans la file de thread pret, l'exécution bascule vers ce contexte, qui peut libérer en sécurité les ressources restantes, sans
+utiliser la pile du thread à détruire.
+Enfin, le champ \texttt{heap\_allocated} permet de distinguer les threads alloués dynamiquement du thread principal statique : seuls les threads alloués sur le tas sont libérés avec \texttt{free}, ce qui évite une libération
+  invalide de la structure du thread principal.
+
+
+%INFO: pas sur de ca
+%%Validation finale avec valgrind
+%\subsection{Validation Mémoire}
+%L'intégrité de la mémoire lors de l'execution est assurée grâce a l'utilisation de valgrind. Un certain nombre d'élément doivent etre
+%adapter afin que l'outil fonctionne correctement.

@@ -13,6 +13,7 @@ Notre implémentation de la file repose sur celle décrite par la librarie \text
 \subsection{Prévention interblocage}
 Un thread pouvant attendre le résultat d'un autre afin de, par exemple récuperer son résultat, un certain nombre de comportements
 problématique peuvent faire surface. Nous allons voir notre méthode de prévention de ces derniers.
+
 \subsubsection{Cycle d'interblocage}
 Dans le cas où un ensemble de thread forment un cycle d'attente mutuelle de terminaison, le programme reste bloqué indéfiniment.
 Pour répondre à ce cas, nous avons introduit dans la structure de thread \textit{thread\_struct}, un pointeur vers le thread dont la terminaison est attendu.
