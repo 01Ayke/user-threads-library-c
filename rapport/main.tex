@@ -37,9 +37,9 @@ Rapport intermédiaire}
 
 \section{Introduction}
 
-Ce rapport décrit l’état d’avancement de notre bibliothèque de threads en espace utilisateur. L’objectif principal de cette première phase était d’obtenir un code fonctionnel et fiable pour les opérations de base : création de threads, ordonnancement coopératif, terminaison, synchronisation par \texttt{join} et mutex. La priorité a été donnée à la robustesse (pas de fuites mémoire, détection d’erreurs) avant d’envisager des optimisations ou des fonctionnalités avancées.
+Ce rapport décrit l’état d’avancement de notre bibliothèque de threads en espace utilisateur. L’objectif principal de cette première phase était d’obtenir un code fonctionnel et fiable pour les opérations de base : création de threads, ordonnancement coopératif, terminaison, synchronisation par \texttt{join} et mutex. La priorité à été donnée à la robustesse (pas de fuites mémoire, détection d’erreurs) avant d’envisager des optimisations ou des fonctionnalités avancées.
 
-Nous présentons ici l’architecture retenue, les choix d’implémentation, ce qui marche, ce qui ne marche pas encore, et les difficultés que nous avons surmontées. Une première version très simpliste nous a permis d’identifier rapidement les problèmes majeurs (gestion des piles, nettoyage des threads terminés, blocage dans \texttt{join}) et de concevoir la version actuelle.
+Nous présentons ici l’architecture retenue, les choix d’implémentation, ce qui marche, ce qui ne marche pas encore, et les difficultés que nous avons surmontées. Une première version très simpliste nous à permis d’identifier rapidement les problèmes majeurs (gestion des piles, nettoyage des threads terminés, blocage dans \texttt{join}) et de concevoir la version actuelle.
 
 \section{Architecture générale}
 
@@ -54,10 +54,10 @@ Chaque thread est représenté par une structure \texttt{struct thread\_struct} 
     \item \texttt{stack} : pointeur vers la pile allouée pour ce thread.
     \item \texttt{vg\_stack\_id} : identifiant pour Valgrind.
     \item \texttt{func} et \texttt{funcarg} : fonction et argument passés à \texttt{thread\_create}.
-    \item \texttt{joined} : booléen indiquant si un \texttt{join} a déjà eu lieu.
+    \item \texttt{joined} : booléen indiquant si un \texttt{join} à déjà eu lieu.
     \item \texttt{joiner} : thread en attente de la terminaison de celui-ci.
     \item \texttt{waiting\_for} : thread que l’on attend (pour détection de deadlock).
-    \item \texttt{heap\_allocated} : indique si la structure a été allouée par \texttt{malloc} (pour distinguer le thread principal).
+    \item \texttt{heap\_allocated} : indique si la structure à été allouée par \texttt{malloc} (pour distinguer le thread principal).
     \item Deux entrées TAILQ : l’une pour la file des threads prêts (\texttt{entries}), l’autre pour les files d’attente des mutex (\texttt{mutex\_entries}).
 \end{itemize}
 
@@ -107,7 +107,7 @@ C’est la fonction la plus complexe. Elle effectue plusieurs vérifications :
     \item Le thread cible ne doit pas être \texttt{NULL}.
     \item On ne peut pas faire \texttt{join} sur soi-même.
     \item Un thread ne peut être joint qu’une seule fois (vérification du champ \texttt{joined}).
-    \item \textbf{Détection de deadlock} : on parcourt la chaîne des \texttt{waiting\_for} à partir du thread cible. Si on retombe sur le thread courant, il y a deadlock et on retourne \texttt{EDEADLK}.
+    \item \textbf{Détection de deadlock} : on parcourt la chaîne des \texttt{waiting\_for} à partir du thread cible. Si on retombe sur le thread courant, il y à deadlock et on retourne \texttt{EDEADLK}.
 \end{itemize}
 
 Si le thread cible n’est pas terminé (\texttt{state != DONE}) :
@@ -128,7 +128,7 @@ Les mutex sont très simples :
 \begin{itemize}
     \item \texttt{thread\_mutex\_init} : initialise \texttt{locked = 0} et une file d’attente vide.
     \item \texttt{thread\_mutex\_lock} : si le mutex est libre, on le prend (\texttt{locked = 1}). Sinon, on se bloque (état \texttt{BLOCKED}) et on s’insère dans la file d’attente du mutex, puis on cède la main.
-    \item \texttt{thread\_mutex\_unlock} : s’il y a des threads en attente, on en prend le premier, on le passe en \texttt{READY} et on le remet dans la \texttt{ready\_queue}. Le mutex reste verrouillé car ce thread en devient propriétaire. Sinon, on le libère (\texttt{locked = 0}).
+    \item \texttt{thread\_mutex\_unlock} : s’il y à des threads en attente, on en prend le premier, on le passe en \texttt{READY} et on le remet dans la \texttt{ready\_queue}. Le mutex reste verrouillé car ce thread en devient propriétaire. Sinon, on le libère (\texttt{locked = 0}).
     \item \texttt{thread\_mutex\_destroy} : échoue si des threads attendent encore.
 \end{itemize}
 
@@ -160,7 +160,7 @@ Un destructeur (\texttt{cleanup\_routine}) est exécuté à la fin du programme 
 
 \subsection{Deadlock dans les \texttt{join} circulaires}
 
-\textbf{Problème} : si A attend B et B attend A, les deux restent bloqués indéfiniment.\\
+\textbf{Problème} : si À attend B et B attend A, les deux restent bloqués indéfiniment.\\
 \textbf{Solution} : détection par parcours de \texttt{waiting\_for} avant de se bloquer. La fonction \texttt{thread\_join} retourne \texttt{EDEADLK} dans ce cas.
 
 \subsection{Valgrind signale des erreurs sur les piles}

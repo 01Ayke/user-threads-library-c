@@ -2,14 +2,14 @@
 %pref
 
 \subsection{Préemption}
-Actuellement, notre bibliothèque ne donne la main a un autre thread que dans le cas ou le thread courrant lui laisse explicitement.
-Cela peut poser un probleme de famine entre les threads et il est notre objectif de fournir un systeme de préemption.
+Actuellement, notre bibliothèque ne donne la main à un autre thread que dans le cas où le thread courant lui laisse explicitement.
+Cela peut poser un problème de famine entre les threads et notre objectif est de fournir un système de préemption.
 
 \subsection{Prévention DeadLock}
-La question des DeadLocks constinue un point critique dans la gestion des mutex. Elle n'est pour l'instant pas implémentée actuellement et consistue un axe d'amélioration a explorer.
+La question des deadlocks constitue un point critique dans la gestion des mutex. Elle n'est pour l'instant pas implémentée actuellement et constitue un axe d'amélioration à explorer.
 
 %on ne sait pas si on va vraiment le faire et donc mutex , on pourrait utiliser une file simple 
 \subsection{Performances}
-Comme nous l'avons explicite precedement, la recherche de performances n'a ete que secondaire par rapport
-a celui de la construction d'une bibliothèque stable et fiable. \\ 
-Maintenant que nous estimons avoir une base convenable, nous comptons étudier plus en detail les possibilités s'offrant a nous.
+Comme nous l'avons explicité précédemment, la recherche de performances n'a été que secondaire par rapport
+à celle de la construction d'une bibliothèque stable et fiable. \\ 
+Maintenant que nous estimons avoir une base convenable, nous comptons étudier plus en détail les possibilités s'offrant à nous.

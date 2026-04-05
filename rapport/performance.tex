@@ -3,7 +3,7 @@
 \subsection{Protocole de mesure}
 Nous avons mesuré les performances uniquement sur les tests pertinents. Ces tests comparent notamment les performances de notre librairie, à celle de pthread.
 
-Pour chaque test, nous lançons 3 executions et nous conservons la médiane des relevés afin de fournir un résultat moins sensible au bruit.
+Pour chaque test, nous lançons 3 exécutions et nous conservons la médiane des relevés afin de fournir un résultat moins sensible au bruit.
 Les mesures ci-dessous correspondent à la configuration :
 \texttt{threads=64} et \texttt{yields=1000} quand applicable dans le test.
 %TODO: dire la config (8 coeurs)
@@ -50,5 +50,5 @@ Les mesures ci-dessous correspondent à la configuration :
 \subsection{Limitation de la comparaison}
 
 %TODO: Parler de la pertinence de comparer avec pthread
-% dire que certains tests sont forcement plus facile a gagner pour notre truc vu que c'est en process utilisateur
+% dire que certains tests sont forcement plus facile à gagner pour notre truc vu que c'est en process utilisateur
 % dire aussi que d'autres ca va etre pthread vu que c'est du vrai parallelisme
