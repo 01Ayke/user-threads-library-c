@@ -2,9 +2,10 @@
 \label{sec:files_dattente}
 Afin de pouvoir avoir une exécution de plusieurs threads et de gérer ces exécutions (thread qui cède le processeur: thread qui termine et plus tard afin de pouvoir appliquer une politique de préemption, 
 nous avons ajouté une file d'attente permettant de stocker les threads prêts à l'exécution. Nous avons opté pour le choix d'une file doublement chaînée afin de pouvoir effectuer 
-des insertions, suppressions et modifications en temps constant. Obtenir une complexité basée sur ces opérations est important dans une recherche de performance notamment lorsque ces actions sont essentielles
+des insertions, suppressions et modifications en temps constant. \\
+Obtenir une complexité basée sur ces opérations est important dans une recherche de performance notamment lorsque ces actions sont essentielles
 comme par exemple le retrait d'un thread de la file
-lors d'un changement d'état de ce dernier. Cette opération sur une file simple aurait entraîné une complexité linéaire non négligeable.
+lors d'un changement d'état de ce dernier. Cette opération sur une file simple aurait entraîné une complexité linéaire non négligeable.\\ 
 Ce choix porte un coup, notamment un coup mémoire. Seulement, le nombre de threads restant globalement faible : le surcoût mémoire apporté nous paraît négligeable.
 Notre implémentation de la file repose sur celle décrite par la librairie \textit{<sys/queue.h>}\cite{queue_lib} et a été ajoutée en variable statique de la librairie ; nous avons également ajouté à la structure \textit{thread\_struct} les nœuds attendus.
 

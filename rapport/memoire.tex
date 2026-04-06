@@ -15,19 +15,19 @@ Cela assure un appel à la routine même si elle n'est jamais appelée dans le c
 %    \item \texttt{heap\_allocated} : indique si la structure a été allouée par \texttt{malloc} (pour distinguer le thread principal).
 \subsection{Appel à un destructeur}
 Un autre point est le fait que la libération de la mémoire utilisée par un thread n'est effectuée qu'après que celui-ci ait été joint
-par un autre thread. Seulement, si aucun thread n'attend ce dernier : on peut obtenir une fuite de mémoire. 
-Nous avons donc défini un destructeur, qui est exécuté à la fin du processus. Il permet de libérer les ressources allouées des threads restants dans la file des prêts ainsi que le dernier thread qui a terminé et qui n'aurait donc aucun autre thread pouvant le joindre.
+par un autre thread. Seulement, si aucun thread n'attend ce dernier : on peut obtenir une fuite de mémoire.  \\ 
+Nous avons donc défini un destructeur, qui est exécuté à la fin du processus. Il permet de libérer les ressources allouées des threads restants dans la file des prêts ainsi que le dernier thread qui a terminé et qui n'aurait donc aucun autre thread pouvant le joindre. \\
 La destruction du dernier thread exécutable demande un traitement particulier.
 En effet, un thread ne peut pas libérer sa propre pile pendant qu'il s'exécute encore dessus. Cela provoquerait une corruption mémoire (use-after-free).
 Dans notre implémentation, lorsqu'un thread se termine (\texttt{thread\_exit}), il est d'abord marqué comme terminé, puis l'ordonnanceur tente de sélectionner un autre thread prêt.
-S'il en existe un, l'exécution est transférée vers ce thread, et la libération de la mémoire du thread terminé est réalisée plus tard (typiquement via \texttt{thread\_join}).
+S'il en existe un, l'exécution est transférée vers ce thread, et la libération de la mémoire du thread terminé est réalisée plus tard (typiquement via \texttt{thread\_join}).\\ 
 Le cas critique est celui où aucun thread prêt n'existe après \texttt{thread\_exit} : il reste alors un dernier thread à nettoyer.
 Pour résoudre ce problème, nous utilisons un contexte de nettoyage dédié (\texttt{cleanup\_ctx}) avec une
-pile séparée (\texttt{cleanup\_stack}) allouée statiquement.
+pile séparée (\texttt{cleanup\_stack}) allouée statiquement.\\ 
 
 Lorsque plus aucun thread n'est présent dans la file de threads prêts, l'exécution bascule vers ce contexte, qui peut libérer en sécurité les ressources restantes, sans
-utiliser la pile du thread à détruire.
-Enfin, le champ \texttt{heap\_allocated} permet de distinguer les threads alloués dynamiquement du thread principal statique : seuls les threads alloués sur le tas sont libérés avec \texttt{free}, ce qui évite une libération
+utiliser la pile du thread à détruire. \\ 
+Enfin, le champ \texttt{heap\_allocated} ajouté a la structure de thread,  permet de distinguer les threads alloués dynamiquement du thread principal statique : seuls les threads alloués sur le tas sont libérés avec \texttt{free}, ce qui évite une libération
   invalide de la structure du thread principal.
 
 
