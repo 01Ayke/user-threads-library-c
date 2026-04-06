@@ -86,10 +86,13 @@ def parse_graph_line(test_id, output):
 
 
 def args_for_test(test_id, nthreads, nyield):
+    VALUE_FIBO = 5000
     if test_id in {21, 22, 23, 24, 34, 61, 62}:
         return [str(nthreads)]
     if test_id in {31, 32, 33}:
         return [str(nthreads), str(nyield)]
+    if test_id in {51}:
+        return [str(VALUE_FIBO)]
     return None
 
 
