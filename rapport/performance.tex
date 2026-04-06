@@ -44,11 +44,27 @@ Les mesures ci-dessous correspondent à la configuration :
 % En revanche, les tests 33 et 62 restent des points faibles : ils semblent plus sensibles
 % à nos choix de structures de données et au coût des parcours quand le nombre de threads
 % augmente.
-
-
+Les tests 21, 22, 23 et 32 montrent des gains significatifs par rapport à pthread (jusqu'à un facteur 90 pour le test 32). 
+Ceci s'expliquent par l'absence d'appel système. En fait pthread nécessite une création noyau, tandis que notre bibliothèque 
+reste en espace utilisateur. Le cas extrême du test 32 est particulier: la cascade garantit qu'un seul thread est actif, 
+les 1000 yields ne déclenchent aucun swapcontext, ce qui rend le résultat plus intéressant.
+Pour ce qui est le test 31, le ration est proche de 1, ceci s'explique par le fait qu'il mette en valeur exclusivement les 
+changements de contexte avec tous les threads actifs en même temps, et le coût de swapcontext de notre bibliothèque est comparable au coût de 
+scheduling pthread sur un seul cœur.
+Le test 33 est le seul où notre bibliothèque est plus lente (ratio 1.62). EN effet, ce test génère un nombre quadratique de yields
+(nbyield * nbthread * (nbthread+1) / 2)
+avec tous les threads actifs en même temps. Sur une machine à 8 cœurs, pthread peut distribuer ces threads sur plusieurs cœurs et progresser en 
+parallèle, tandis que notre bibliothèque reste séquentielle.
+Le test 61 montre un grand avantage (0.13) car notre mutex évite tout appel système. En réalité, le blocage et le réveil sont de simples 
+manipulations de files en espace utilisateur. Le test 62 avec 10 mutex indépendants est en revanche montre un ration très proche de 1, 
+: la contention se distribue suffisamment pour que pthread amortisse son surcoût.
 
 \subsection{Limitation de la comparaison}
 
 %TODO: Parler de la pertinence de comparer avec pthread
 % dire que certains tests sont forcement plus facile à gagner pour notre truc vu que c'est en process utilisateur
 % dire aussi que d'autres ca va etre pthread vu que c'est du vrai parallelisme
+La bibliothèque s'exécute sur un seul thread noyau, aucun parallélisme n'est possible.
+Sur des workloads séquentiels ou à faible contention, elle gagne sytématiquement grâce à l'absence d'appels système. En revanche, 
+sur des workloads avec de nombreux threads actifs en même temps, pthread utilise les cœurs supplémentaires pour reprendre l'avantage. 
+La comparaison est donc efficace pour mesurer le coût de l'ordonnancement, mais ne reflète pas une concurrence réelle sur des charges parallèles.
