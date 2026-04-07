@@ -366,10 +366,10 @@ thread_mutex_lock (thread_mutex_t *mutex)
   next = scheduler_pick_next ();
   if (next == NULL)
     {
-      // personne d'autre à exécuter -> on annule le blocage
+      // ready queue vide + thread courant bloqué -> deadlock
       TAILQ_REMOVE (&mutex->wait_queue, self, mutex_entries);
       self->state = RUNNING;
-      return -1;
+      return EDEADLK;
     }
 
   next->state = RUNNING;
