@@ -262,7 +262,6 @@ thread_join (thread_t thread, void **retval)
   struct thread_struct *target;
   struct thread_struct *self;
   struct thread_struct *next;
-  struct thread_struct *cursor;
 
   target = (struct thread_struct *)thread;
   self = current_thread;
@@ -278,6 +277,7 @@ thread_join (thread_t thread, void **retval)
 
 #ifdef DEADLOCK_DETECTION
   // INFO: Deadlock detection
+  struct thread_struct *cursor;
   if (target->state != DONE)
     {
       cursor = target;
