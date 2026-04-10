@@ -131,7 +131,8 @@ ctx_init_handler (int sig)
       // Premier passage : retour vers thread_create
       siglongjmp (init_return, 1);
     }
-  // Deuxième passage : le thread démarre réellement (via _longjmp depuis yield/exit)
+  // Deuxième passage : le thread démarre réellement (via _longjmp depuis
+  // yield/exit)
   thread_wrapper ();
   abort ();
 }
@@ -150,7 +151,8 @@ cleanup_init_handler (int sig)
 }
 
 // Configure sigaltstack sur `stack` et lève SIGUSR1 pour que le handler
-// s'exécute sur cette pile. Utilisé pour initialiser un jmp_buf sur une pile donnée.
+// s'exécute sur cette pile. Utilisé pour initialiser un jmp_buf sur une pile
+// donnée.
 static void
 setup_ctx_on_stack (void *stack, size_t stacksize, void (*handler) (int))
 {
