@@ -12,9 +12,11 @@ BIN_DIR = install/bin
 PTHREAD_BIN_DIR = install/bin-pthread
 LIB_DIR = install/lib
 TESTS = $(wildcard tests/*.c)
+TESTS_NO_DEADLOCK = $(filter-out tests/81-deadlock.c,$(TESTS))
 
 all: build $(LIB_DIR) $(BIN_DIR) $(LIB)
-	$(foreach test,$(TESTS),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) $(LDFLAGS) -lthread;)
+	$(foreach test,$(TESTS_NO_DEADLOCK),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) $(LDFLAGS) -lthread;)
+	$(CC) $(CFLAGS) -DDEADLOCK_DETECTION tests/81-deadlock.c $(SRC) -o $(BIN_DIR)/81-deadlock
 
 build:
 	mkdir -p build
