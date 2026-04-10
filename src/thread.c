@@ -276,6 +276,7 @@ thread_join (thread_t thread, void **retval)
   if (target->joined)
     return -3;
 
+#ifdef DEADLOCK_DETECTION
   // INFO: Deadlock detection
   if (target->state != DONE)
     {
@@ -287,6 +288,7 @@ thread_join (thread_t thread, void **retval)
           cursor = cursor->waiting_for;
         }
     }
+#endif
 
   target->joined = 1;
 
