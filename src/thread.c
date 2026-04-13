@@ -1,11 +1,9 @@
-#define _GNU_SOURCE
 #include "thread.h"
 #include <errno.h>
-#include <setjmp.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/queue.h>
+#include <ucontext.h>
 #ifdef HAVE_VALGRIND
 #include <valgrind/valgrind.h>
 #else
@@ -14,8 +12,7 @@
 #endif
 // TODO: enlever les valeurs magiques dans les codes d'erreurs
 
-// Le stack doit être >= MINSIGSTKSZ car on utilise sigaltstack pour init
-#define STACK_SIZE (8 * 4096)
+#define STACK_SIZE (4096)
 
 enum thread_state
 {
@@ -30,7 +27,7 @@ struct thread_struct
   enum thread_state state;
   void *retval;
 
-  jmp_buf ctx;
+  ucontext_t ctx;
   void *stack;
   int vg_stack_id;
 
@@ -54,13 +51,9 @@ static struct thread_queue ready_queue;
 static struct thread_struct main_thread;
 static struct thread_struct *current_thread = NULL;
 
-static jmp_buf cleanup_jmp;
+static ucontext_t cleanup_ctx;
 static char cleanup_stack[STACK_SIZE];
 static struct thread_struct *last_exited_thread = NULL;
-
-// Utilisés temporairement pendant l'initialisation d'un contexte
-static sigjmp_buf init_return;
-static struct thread_struct *init_target;
 
 static struct thread_struct *
 scheduler_pick_next (void)
@@ -81,7 +74,6 @@ thread_wrapper (void)
   void *ret = current_thread->func (current_thread->funcarg);
   thread_exit (ret);
 }
-
 static void
 free_thread (struct thread_struct *t)
 {
@@ -120,65 +112,6 @@ cleanup_routine (void)
   exit (0);
 }
 
-// Handler pour initialiser le contexte d'un thread ordinaire.
-// S'exécute sur la pile du thread (via sigaltstack).
-static void
-ctx_init_handler (int sig)
-{
-  (void)sig;
-  if (_setjmp (init_target->ctx) == 0)
-    {
-      // Premier passage : retour vers thread_create
-      siglongjmp (init_return, 1);
-    }
-  // Deuxième passage : le thread démarre réellement (via _longjmp depuis
-  // yield/exit)
-  thread_wrapper ();
-  abort ();
-}
-
-// Handler pour initialiser le contexte de cleanup.
-static void
-cleanup_init_handler (int sig)
-{
-  (void)sig;
-  if (_setjmp (cleanup_jmp) == 0)
-    {
-      siglongjmp (init_return, 1);
-    }
-  cleanup_routine ();
-  abort ();
-}
-
-// Configure sigaltstack sur `stack` et lève SIGUSR1 pour que le handler
-// s'exécute sur cette pile. Utilisé pour initialiser un jmp_buf sur une pile
-// donnée.
-static void
-setup_ctx_on_stack (void *stack, size_t stacksize, void (*handler) (int))
-{
-  stack_t ss, old_ss;
-  struct sigaction sa, old_sa;
-
-  ss.ss_sp = stack;
-  ss.ss_size = stacksize;
-  ss.ss_flags = 0;
-  sigaltstack (&ss, &old_ss);
-
-  sa.sa_handler = handler;
-  sa.sa_flags = SA_ONSTACK;
-  sigemptyset (&sa.sa_mask);
-  sigaction (SIGUSR1, &sa, &old_sa);
-
-  // sigsetjmp sauvegarde le masque de signaux pour que siglongjmp depuis
-  // le handler restaure l'état (débloque SIGUSR1).
-  if (sigsetjmp (init_return, 1) == 0)
-    raise (SIGUSR1);
-  // On arrive ici après siglongjmp(init_return, 1) depuis le handler
-
-  sigaltstack (&old_ss, NULL);
-  sigaction (SIGUSR1, &old_sa, NULL);
-}
-
 __attribute__ ((constructor)) static void
 thread_init (void)
 {
@@ -195,10 +128,14 @@ thread_init (void)
   main_thread.waiting_for = NULL;
   main_thread.heap_allocated = 0;
 
-  // Initialiser le contexte de cleanup sur cleanup_stack
-  setup_ctx_on_stack (cleanup_stack, sizeof (cleanup_stack),
-                      cleanup_init_handler);
+  getcontext (&cleanup_ctx);
+  cleanup_ctx.uc_stack.ss_sp = cleanup_stack;
+  cleanup_ctx.uc_stack.ss_size = sizeof (cleanup_stack);
+  cleanup_ctx.uc_stack.ss_flags = 0;
+  cleanup_ctx.uc_link = NULL;
+  makecontext (&cleanup_ctx, cleanup_routine, 0);
 
+  getcontext (&main_thread.ctx);
   current_thread = &main_thread;
 }
 
@@ -235,12 +172,18 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
   t->joiner = NULL;
   t->waiting_for = NULL;
   t->heap_allocated = 1;
-  t->vg_stack_id
-      = VALGRIND_STACK_REGISTER (t->stack, (char *)t->stack + STACK_SIZE);
 
-  // Initialiser le jmp_buf du thread sur sa propre pile
-  init_target = t;
-  setup_ctx_on_stack (t->stack, STACK_SIZE, ctx_init_handler);
+  getcontext (&t->ctx);
+  t->ctx.uc_stack.ss_sp = t->stack;
+  t->ctx.uc_stack.ss_size = STACK_SIZE;
+  t->ctx.uc_stack.ss_flags = 0;
+  t->ctx.uc_link = NULL;
+
+  t->vg_stack_id = VALGRIND_STACK_REGISTER (t->ctx.uc_stack.ss_sp,
+                                            (char *)t->ctx.uc_stack.ss_sp
+                                                + t->ctx.uc_stack.ss_size);
+
+  makecontext (&t->ctx, thread_wrapper, 0);
 
   TAILQ_INSERT_TAIL (&ready_queue, t, entries);
   *newthread = (thread_t)t;
@@ -268,9 +211,7 @@ thread_yield (void)
   next->state = RUNNING;
   current_thread = next;
 
-  // Sauvegarder le contexte courant et basculer vers next
-  if (_setjmp (prev->ctx) == 0)
-    _longjmp (next->ctx, 1);
+  swapcontext (&prev->ctx, &next->ctx);
   return 0;
 }
 
@@ -304,14 +245,14 @@ thread_exit (void *retval)
         last_exited_thread = NULL;
 
       current_thread = NULL;
-      _longjmp (cleanup_jmp, 1);
+      setcontext (&cleanup_ctx);
       abort ();
     }
 
   next->state = RUNNING;
   current_thread = next;
 
-  _longjmp (next->ctx, 1);
+  setcontext (&next->ctx);
   __builtin_unreachable ();
 }
 
@@ -370,8 +311,7 @@ thread_join (thread_t thread, void **retval)
       next->state = RUNNING;
       current_thread = next;
 
-      if (_setjmp (self->ctx) == 0)
-        _longjmp (next->ctx, 1);
+      swapcontext (&self->ctx, &next->ctx);
       self->waiting_for = NULL;
     }
 
@@ -436,8 +376,7 @@ thread_mutex_lock (thread_mutex_t *mutex)
 
   next->state = RUNNING;
   current_thread = next;
-  if (_setjmp (self->ctx) == 0)
-    _longjmp (next->ctx, 1);
+  swapcontext (&self->ctx, &next->ctx);
   return 0;
 }
 
