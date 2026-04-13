@@ -1,6 +1,6 @@
 CC = gcc
 UNAME_S := $(shell uname -s)
-CFLAGS = -Wall -Wextra -g -O2 -I./src -D_XOPEN_SOURCE
+CFLAGS = -Wall -Wextra -g -O2 -I./src -D_XOPEN_SOURCE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
 LDFLAGS = -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../lib'
 ifeq ($(UNAME_S),Linux)
   CFLAGS += -DHAVE_VALGRIND
