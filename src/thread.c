@@ -16,24 +16,23 @@
 #define STACK_SIZE (4096)
 #define POOL_SIZE  (1024)
 
-/*
- * x86_64 glibc jmp_buf layout:
- *   [6] = rsp (pointer-mangled)
- *   [7] = rip (pointer-mangled)
- * Mangling: stored = rol17(value ^ cookie), cookie at %fs:0x30
- */
-#define JB_RSP 6
-#define JB_PC  7
+
+#define JB_RSP 6 //ou en est le stack (la pile d'appels)
+#define JB_PC  7 //ou en est le programme (quelle instruction il allait executer)
+
 
 static uintptr_t jmp_cookie;
 
+
+/*La cle dans %fs:0x30 . Si on ecrit dans jmp_buf sans chiffrer, longjmp va dechiffrer une adresse qui ne vaut rien donc crash.
+Donc ptr_mangle reproduit ce chiffrement pour que nos adresses ecrites a la main soient acceptees*/
 static uintptr_t
 ptr_mangle (uintptr_t ptr)
 {
   uintptr_t x = ptr ^ jmp_cookie;
   return (x << 17) | (x >> 47);
 }
-
+// fonction d initilisation des pointeur des contexts pour les jump 
 static void
 setup_jmp_buf (jmp_buf buf, void *stack, size_t stack_size, void (*func) (void))
 {
@@ -175,7 +174,7 @@ thread_init (void)
 {
   int i;
   struct thread_struct *t;
-
+  // chiffrage pour setlongjmp 
   __asm__ volatile ("mov %%fs:0x30, %0" : "=r" (jmp_cookie));
 
   TAILQ_INIT (&ready_queue);
