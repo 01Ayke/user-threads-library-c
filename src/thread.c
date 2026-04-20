@@ -14,6 +14,7 @@
 #endif
 
 #define STACK_SIZE (4096)
+#define POOL_SIZE  (1024)
 
 /*
  * x86_64 glibc jmp_buf layout:
@@ -30,18 +31,17 @@ static uintptr_t
 ptr_mangle (uintptr_t ptr)
 {
   uintptr_t x = ptr ^ jmp_cookie;
-  return (x << 17) | (x >> 47); /* rotate left 17 */
+  return (x << 17) | (x >> 47);
 }
 
-/* Set up a fresh jmp_buf to start func on the given stack. */
 static void
 setup_jmp_buf (jmp_buf buf, void *stack, size_t stack_size, void (*func) (void))
 {
   uintptr_t sp;
   memset (buf, 0, sizeof (jmp_buf));
   sp = (uintptr_t) stack + stack_size;
-  sp &= ~(uintptr_t) 15; /* 16-byte align */
-  sp -= 8;               /* x86-64 ABI: rsp = 16n-8 at function entry */
+  sp &= ~(uintptr_t) 15;
+  sp -= 8;
   ((uintptr_t *) buf)[JB_RSP] = ptr_mangle (sp);
   ((uintptr_t *) buf)[JB_PC] = ptr_mangle ((uintptr_t) func);
 }
@@ -78,6 +78,7 @@ struct thread_struct
 
 TAILQ_HEAD (thread_queue, thread_struct);
 static struct thread_queue ready_queue;
+static struct thread_queue free_pool; /* threads pré-alloués disponibles */
 
 static struct thread_struct main_thread;
 static struct thread_struct *current_thread = NULL;
@@ -106,6 +107,7 @@ thread_wrapper (void)
   thread_exit (ret);
 }
 
+/* Libère définitivement un thread (cleanup final uniquement). */
 static void
 free_thread (struct thread_struct *t)
 {
@@ -121,6 +123,23 @@ free_thread (struct thread_struct *t)
 
   if (t->heap_allocated)
     free (t);
+}
+
+/* Remet un thread terminé dans le pool pour réutilisation. */
+static void
+recycle_thread (struct thread_struct *t)
+{
+  if (t == NULL)
+    return;
+
+  t->state = READY;
+  t->retval = NULL;
+  t->joined = 0;
+  t->joiner = NULL;
+  t->waiting_for = NULL;
+  t->func = NULL;
+  t->funcarg = NULL;
+  TAILQ_INSERT_TAIL (&free_pool, t, entries);
 }
 
 __attribute__ ((destructor)) static void
@@ -141,16 +160,46 @@ cleanup_routine (void)
       free_thread (t);
     }
 
+  while (!TAILQ_EMPTY (&free_pool))
+    {
+      t = TAILQ_FIRST (&free_pool);
+      TAILQ_REMOVE (&free_pool, t, entries);
+      free_thread (t);
+    }
+
   exit (0);
 }
 
 __attribute__ ((constructor)) static void
 thread_init (void)
 {
-  /* Read glibc pointer-mangling cookie (x86-64: stored at %fs:0x30) */
+  int i;
+  struct thread_struct *t;
+
   __asm__ volatile ("mov %%fs:0x30, %0" : "=r" (jmp_cookie));
 
   TAILQ_INIT (&ready_queue);
+  TAILQ_INIT (&free_pool);
+
+  /* Pré-allocation du pool avant main() : tous les malloc/stack ici. */
+  for (i = 0; i < POOL_SIZE; i++)
+    {
+      t = malloc (sizeof (*t));
+      if (t == NULL)
+        break;
+
+      t->stack = malloc (STACK_SIZE);
+      if (t->stack == NULL)
+        {
+          free (t);
+          break;
+        }
+
+      t->heap_allocated = 1;
+      t->vg_stack_id
+        = VALGRIND_STACK_REGISTER (t->stack, (char *) t->stack + STACK_SIZE);
+      recycle_thread (t);
+    }
 
   main_thread.state = RUNNING;
   main_thread.retval = NULL;
@@ -183,15 +232,28 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
   if (newthread == NULL || func == NULL)
     return -1;
 
-  t = malloc (sizeof (*t));
-  if (t == NULL)
-    return -2;
-
-  t->stack = malloc (STACK_SIZE);
-  if (t->stack == NULL)
+  /* Prendre depuis le pool si disponible, sinon malloc. */
+  if (!TAILQ_EMPTY (&free_pool))
     {
-      free (t);
-      return -3;
+      t = TAILQ_FIRST (&free_pool);
+      TAILQ_REMOVE (&free_pool, t, entries);
+    }
+  else
+    {
+      t = malloc (sizeof (*t));
+      if (t == NULL)
+        return -2;
+
+      t->stack = malloc (STACK_SIZE);
+      if (t->stack == NULL)
+        {
+          free (t);
+          return -3;
+        }
+
+      t->heap_allocated = 1;
+      t->vg_stack_id
+        = VALGRIND_STACK_REGISTER (t->stack, (char *) t->stack + STACK_SIZE);
     }
 
   t->state = READY;
@@ -201,10 +263,7 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
   t->joined = 0;
   t->joiner = NULL;
   t->waiting_for = NULL;
-  t->heap_allocated = 1;
 
-  t->vg_stack_id
-    = VALGRIND_STACK_REGISTER (t->stack, (char *) t->stack + STACK_SIZE);
   setup_jmp_buf (t->ctx, t->stack, STACK_SIZE, thread_wrapper);
 
   TAILQ_INSERT_TAIL (&ready_queue, t, entries);
@@ -338,15 +397,8 @@ thread_join (thread_t thread, void **retval)
   if (retval != NULL)
     *retval = target->retval;
 
-  if (target->stack != NULL)
-    {
-      VALGRIND_STACK_DEREGISTER (target->vg_stack_id);
-      free (target->stack);
-      target->stack = NULL;
-    }
-
-  if (target->heap_allocated)
-    free (target);
+  /* Recycler dans le pool au lieu de libérer. */
+  recycle_thread (target);
   return 0;
 }
 
