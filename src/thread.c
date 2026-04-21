@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <sys/queue.h>
 #include <ucontext.h>
+#ifdef PREEMPTION
+#include <signal.h>
+#include <sys/time.h>
+#endif
 #ifdef HAVE_VALGRIND
 #include <valgrind/valgrind.h>
 #else
@@ -12,8 +16,11 @@
 #endif
 // TODO: enlever les valeurs magiques dans les codes d'erreurs
 
-#define STACK_SIZE (4096)
-
+#define STACK_SIZE (65536)
+#define CLEANUP_STACK_SIZE (65536)
+#ifdef PREEMPTION
+#define PREEMPTION_INTERVAL_US 1000
+#endif
 enum thread_state
 {
   READY,
@@ -52,8 +59,62 @@ static struct thread_struct main_thread;
 static struct thread_struct *current_thread = NULL;
 
 static ucontext_t cleanup_ctx;
-static char cleanup_stack[STACK_SIZE];
+static char cleanup_stack[CLEANUP_STACK_SIZE];
 static struct thread_struct *last_exited_thread = NULL;
+
+#ifdef PREEMPTION
+static void
+preemption_disable (void)
+{
+  sigset_t mask;
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGALRM);
+  sigprocmask (SIG_BLOCK, &mask, NULL);
+}
+static void
+preemption_enable (void)
+{
+  sigset_t mask;
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGALRM);
+  sigprocmask (SIG_UNBLOCK, &mask, NULL);
+}
+static void
+preemption_handler (int sig)
+{
+  (void)sig;
+  thread_yield ();
+}
+static void
+preemption_start (void)
+{
+  struct sigaction sa;
+  struct itimerval timer;
+  sa.sa_handler = preemption_handler;
+  sigemptyset (&sa.sa_mask);
+  sigaddset (&sa.sa_mask, SIGALRM);
+  sa.sa_flags = SA_RESTART;
+  sigaction (SIGALRM, &sa, NULL);
+  timer.it_value.tv_sec = 0;
+  timer.it_value.tv_usec = PREEMPTION_INTERVAL_US;
+  timer.it_interval.tv_sec = 0;
+  timer.it_interval.tv_usec = PREEMPTION_INTERVAL_US;
+  setitimer (ITIMER_REAL, &timer, NULL);
+}
+static void
+preemption_stop (void)
+{
+  struct itimerval timer;
+  timer.it_value.tv_sec = 0;
+  timer.it_value.tv_usec = 0;
+  timer.it_interval.tv_sec = 0;
+  timer.it_interval.tv_usec = 0;
+  setitimer (ITIMER_REAL, &timer, NULL);
+}
+#else
+static void preemption_disable (void) {}
+static void preemption_enable (void) {}
+#endif
 
 static struct thread_struct *
 scheduler_pick_next (void)
@@ -94,7 +155,13 @@ free_thread (struct thread_struct *t)
 __attribute__ ((destructor)) static void
 cleanup_routine (void)
 {
+  static int already_called = 0;
   struct thread_struct *t;
+
+  if (already_called)  return;
+  already_called = 1;
+
+  preemption_stop ();
 
   if (last_exited_thread != NULL)
     {
@@ -137,6 +204,9 @@ thread_init (void)
 
   getcontext (&main_thread.ctx);
   current_thread = &main_thread;
+#ifdef PREEMPTION
+  preemption_start ();
+#endif
 }
 
 thread_t
@@ -153,14 +223,19 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
   if (newthread == NULL || func == NULL)
     return -1;
 
+  preemption_disable ();
+
   t = malloc (sizeof (*t));
-  if (t == NULL)
+  if (t == NULL) {
+    preemption_enable ();
     return -2;
+  }
 
   t->stack = malloc (STACK_SIZE);
   if (t->stack == NULL)
     {
       free (t);
+      preemption_enable ();
       return -3;
     }
 
@@ -187,6 +262,7 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
 
   TAILQ_INSERT_TAIL (&ready_queue, t, entries);
   *newthread = (thread_t)t;
+  preemption_enable ();
   return 0;
 }
 
@@ -195,12 +271,15 @@ thread_yield (void)
 {
   struct thread_struct *prev;
   struct thread_struct *next;
+  preemption_disable ();
 
   prev = current_thread;
   next = scheduler_pick_next ();
 
-  if (next == NULL)
+  if (next == NULL) {
+    preemption_enable ();
     return 0;
+  }
 
   if (prev->state == RUNNING)
     {
@@ -212,6 +291,8 @@ thread_yield (void)
   current_thread = next;
 
   swapcontext (&prev->ctx, &next->ctx);
+  preemption_enable ();
+
   return 0;
 }
 
@@ -220,6 +301,7 @@ thread_exit (void *retval)
 {
   struct thread_struct *prev;
   struct thread_struct *next;
+  preemption_disable ();
 
   prev = current_thread;
   prev->retval = retval;
@@ -262,18 +344,26 @@ thread_join (thread_t thread, void **retval)
   struct thread_struct *target;
   struct thread_struct *self;
   struct thread_struct *next;
+  preemption_disable ();
 
   target = (struct thread_struct *)thread;
   self = current_thread;
 
-  if (target == NULL)
+  if (target == NULL) {
+    preemption_enable ();
     return -1;
 
-  if (target == self)
-    return -2;
+  }
 
-  if (target->joined)
+  if (target == self) {
+    preemption_enable ();
+    return -2;
+  }
+
+  if (target->joined) {
+    preemption_enable ();
     return -3;
+  }
 
 #ifdef DEADLOCK_DETECTION
   // INFO: Deadlock detection
@@ -283,8 +373,10 @@ thread_join (thread_t thread, void **retval)
       cursor = target;
       while (cursor != NULL)
         {
-          if (cursor->waiting_for == self)
+          if (cursor->waiting_for == self) {
+            preemption_enable ();
             return EDEADLK;
+          }
           cursor = cursor->waiting_for;
         }
     }
@@ -305,6 +397,7 @@ thread_join (thread_t thread, void **retval)
           self->waiting_for = NULL;
           target->joiner = NULL;
           target->joined = 0;
+          preemption_enable ();
           return -4;
         }
 
@@ -315,8 +408,10 @@ thread_join (thread_t thread, void **retval)
       self->waiting_for = NULL;
     }
 
-  if (target->state != DONE)
+  if (target->state != DONE) {
+    preemption_enable ();
     return -5;
+  }
 
   if (retval != NULL)
     *retval = target->retval;
@@ -330,6 +425,8 @@ thread_join (thread_t thread, void **retval)
 
   if (target->heap_allocated)
     free (target);
+  preemption_enable ();
+
   return 0;
 }
 
@@ -353,10 +450,12 @@ thread_mutex_lock (thread_mutex_t *mutex)
 {
   struct thread_struct *self;
   struct thread_struct *next;
+  preemption_disable ();
 
   if (!mutex->locked)
     {
       mutex->locked = 1;
+      preemption_enable ();
       return 0;
     }
 
@@ -371,12 +470,14 @@ thread_mutex_lock (thread_mutex_t *mutex)
       // ready queue vide + thread courant bloqué -> deadlock
       TAILQ_REMOVE (&mutex->wait_queue, self, mutex_entries);
       self->state = RUNNING;
+      preemption_enable ();
       return EDEADLK;
     }
 
   next->state = RUNNING;
   current_thread = next;
   swapcontext (&self->ctx, &next->ctx);
+  preemption_enable ();
   return 0;
 }
 
@@ -384,6 +485,7 @@ int
 thread_mutex_unlock (thread_mutex_t *mutex)
 {
   struct thread_struct *waiter;
+  preemption_disable ();
 
   if (!TAILQ_EMPTY (&mutex->wait_queue))
     {
@@ -398,5 +500,6 @@ thread_mutex_unlock (thread_mutex_t *mutex)
     {
       mutex->locked = 0;
     }
+  preemption_enable ();
   return 0;
 }
