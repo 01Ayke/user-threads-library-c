@@ -15,13 +15,16 @@ PTHREAD_BIN_DIR = install/bin-pthread
 LIB_DIR = install/lib
 TESTS = $(wildcard tests/*.c)
 TESTS_NO_DEADLOCK = $(filter-out tests/81-deadlock.c,$(TESTS))
+TESTS_NORMAL = $(filter-out tests/71-preemption.c,$(TESTS_NO_DEADLOCK))
 
-all: build $(LIB_DIR) $(BIN_DIR) $(LIB)
-	$(foreach test,$(TESTS_NO_DEADLOCK),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) $(LDFLAGS) -lthread;)
+all: build $(LIB_DIR) $(BIN_DIR) $(LIB) $(LIB_DIR)/libthread_preemption.so
+	$(foreach test,$(TESTS_NORMAL),$(CC) $(CFLAGS) $(test) -o $(BIN_DIR)/$(basename $(notdir $(test))) $(LDFLAGS) -lthread;)
 	$(CC) $(CFLAGS) -DDEADLOCK_DETECTION tests/81-deadlock.c $(SRC) -o $(BIN_DIR)/81-deadlock
+	$(CC) $(CFLAGS) tests/71-preemption.c -o $(BIN_DIR)/71-preemption -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../lib' -lthread_preemption
 
 preemption: build $(LIB_DIR) $(BIN_DIR) $(LIB_DIR)/libthread_preemption.so
 	$(CC) $(CFLAGS) tests/71-preemption.c -o $(BIN_DIR)/71-preemption -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../lib' -lthread_preemption
+	$(BIN_DIR)/71-preemption
 
 build:
 	mkdir -p build
