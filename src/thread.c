@@ -249,6 +249,9 @@ thread_create (thread_t *newthread, void *(*func) (void *), void *funcarg)
   t->heap_allocated = 1;
 
   getcontext (&t->ctx);
+#ifdef PREEMPTION
+  sigemptyset (&t->ctx.uc_sigmask);
+#endif
   t->ctx.uc_stack.ss_sp = t->stack;
   t->ctx.uc_stack.ss_size = STACK_SIZE;
   t->ctx.uc_stack.ss_flags = 0;
